@@ -1,0 +1,19 @@
+NSGA-II algorithm
+=================
+
+Generations: 10
+Population size: 10
+
+Parameter count: 3
+Results count: 2
+
+Minimum bounds: [-4.0, -4.0, -4.0]
+Maximum bounds: [4.0, 4.0, 4.0]
+
+p_mut: 0.033333
+p_cross: 0.9
+eta_m: 20.0
+eta_c: 20.0
+
+Seed: 1473418378.64
+Individuals: [[8, 6, 4]]

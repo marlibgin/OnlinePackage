@@ -1,0 +1,24 @@
+DLS Machine Interactor Base
+===========================
+
+Parameter variables:
+-------------------
+PV name: a
+Delay: 0.1 s
+
+PV name: b
+Delay: 0.1 s
+
+PV name: c
+Delay: 0.1 s
+
+Measurement variables:
+---------------------
+PV name: kur1
+Minimum counts: 1.0
+Delay: 0.1 s
+
+PV name: kur2
+Minimum counts: 1.0
+Delay: 0.1 s
+
