@@ -38,7 +38,7 @@ def addRanGuass(params, temp, upBound, downBound):
     #this version uses truncated gaussian so as to aviod long loops.
     newPoint = []
     for i in range(len(temp)):
-        x = stats.truncnorm((downBound[i] - params[i])/temp[i],(upBound[i] - params[i])/temp[i], loc = params[i], scale=temp[i]).rvs(size=1)
+        x = stats.truncnorm((downBound[i] - params[i])/temp[i],(upBound[i] - params[i])/temp[i], loc = params[i], scale=temp[i]).rvs(size=1)[0]
         #generate the truncated normal and then generage the random number to then etract it from the array.
         newPoint.append(x)
     return newPoint
@@ -135,9 +135,9 @@ class optimiser:
         f = file('{0}/front'.format(self.store_location), 'w')
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
-        for obj in self.domFrontObjectives:
-            f.write('({0}, 0, 0), /n'.format(obj[:]))
-        f.write(')) /n')
+        for i in range(len(self.domFrontObjectives)):
+            f.write('({0}, {1}, 0), \n'.format(tuple(self.domFrontParam[i][:]),tuple(self.domFrontObjectives[i][:])))
+        f.write(')) \n')
         f.close()
 
     def optimise(self):
@@ -207,13 +207,16 @@ class optimiser:
             self.setNewInTemp()
             self.setNewOutTemp(minObjectives)
             #now set new starting point from the pareto front
-            x = random.randrange(len(self.domFrontParam))
-            currentParams = self.domFrontParam[x]
-            currentObj = self.domFrontObjectives[x]
+            k = random.randrange(len(self.domFrontParam))
+            currentParams = self.domFrontParam[k]
+            currentObj = self.domFrontObjectives[k]
             if aneal > self.nOAneals:
                 performAneal = False
             if objCall > self.objCallStop:
                 performAneal = False
+            #if (aneal % 50) == 0:
+                #self.dumpFront()
+        self.dumpFront()
         self.plotFront()
 
 class import_algo_frame(Tkinter.Frame):
@@ -272,6 +275,40 @@ class import_algo_frame(Tkinter.Frame):
         setup['objCallStop'] = int(self.i7.get())
 
         return setup
+
+class import_algo_prog_plot(Tkinter.Frame):
+
+    def __init__(self, parent):
+
+        Tkinter.Frame.__init__(self, parent)
+
+        self.parent = parent
+
+        self.initUi()
+
+    def initUi(self):
+
+        self.fig = Figure(figsize=(5, 5), dpi=100)
+        self.a = self.fig.add_subplot(111)
+
+        self.canvas = FigureCanvasTkAgg(self.fig, self)
+        self.canvas.show()
+        self.canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
+
+
+
+    def update(self):
+        global store_address
+        global completed_generation
+
+        self.a.clear()
+        file_names = []
+        file_names.append("{0}/fronts".format(store_address))
+
+        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
+
+        #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
+        self.canvas.show()
 
 class final_plot(Tkinter.Frame):
     def __init__(self):
