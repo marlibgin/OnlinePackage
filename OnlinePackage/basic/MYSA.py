@@ -8,7 +8,11 @@ import sys
 import os
 import random
 import scipy.stats as stats
-from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.cma as cm
+from matplotlib import pyplot as pyplot
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from usefulFunctions import *
 #define a global store address so that the program can store the fronts for plotting
 store_address = None
@@ -63,6 +67,7 @@ class optimiser:
         self.outTemp = []
         self.domFrontParam = []
         self.domFrontObjectives = []
+        self.domFrontErrors = []
         self.inTemp = []
         self.progress_handler = progress_handler
         self.objCallStop = settings_dict['objCallStop']
@@ -78,7 +83,8 @@ class optimiser:
         #now extract the mean measurment values. The above function returns the measurment as a list of objects that are instances of the
         #the measurment class in dls_optimiser_util
         f = [i.mean for i in measure]
-        return f
+        unc = [i.err for i in measure]
+        return (f, unc)
 
     def setUnifRanPoints(self):
         #sets the optimisers parameters to somewhere random in their range of allowed values.
@@ -112,33 +118,32 @@ class optimiser:
         notDom = True
         dominatedElements = []
         for i in range(len(self.domFrontObjectives)):
-            if is_dominated(self.domFrontObjectives[i], newObj):
+            if is_dominated(self.domFrontObjectives[i], newObj[0]):
                 notDom = False
-            elif is_dominated(newObj, self.domFrontObjectives[i]):
+            elif is_dominated(newObj[0], self.domFrontObjectives[i]):
                 dominatedElements.append(i)
         if notDom:
-            self.domFrontObjectives.append(newObj)
+            self.domFrontObjectives.append(newObj[0])
             self.domFrontParam.append(self.param)
             #now to delete the elements use x to keep track of how many are deleted
             x = 0
             for i in dominatedElements:
                 del self.domFrontParam[i-x]
                 del self.domFrontObjectives[i-x]
+                del self.domFrontErrors[i-x]
                 x += 1
-
-    def plotFront(self):
-        plt.scatter(extractColumn(self.domFrontObjectives,0), extractColumn(self.domFrontObjectives, 1))
-        plt.show()
-
+                2
     def dumpFront(self):
         #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
-        f = file('{0}/front'.format(self.store_location), 'w')
+        f = file("{0}/fronts.1".format(self.store_location), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
         for i in range(len(self.domFrontObjectives)):
-            f.write('({0}, {1}, 0), \n'.format(tuple(self.domFrontParam[i][:]),tuple(self.domFrontObjectives[i][:])))
+            f.write('({0}, {1}, {2}), \n'.format(tuple(self.domFrontParam[i][:]),tuple(self.domFrontObjectives[i][:]), tuple(self.domFrontErrors[i][:])))
         f.write(')) \n')
         f.close()
+
+        pass
 
     def optimise(self):
         global store_address
@@ -154,7 +159,8 @@ class optimiser:
         currentObj = self.getObjectives()
         #initialise the pareto fronts
         self.domFrontParam.append(currentParams)
-        self.domFrontObjectives.append(currentObj)
+        self.domFrontObjectives.append(currentObj[0])
+        self.domFrontErrors.append(currentObj[1])
         self.setIinitOutTemp()
         #set the initial input temperture
         self.inTemp = [(self.up[i] - self.down[i])/2 for i in range(self.paramCount)]
@@ -162,10 +168,9 @@ class optimiser:
         aneal = 0
         while performAneal:
             aneal += 1
-            print aneal
-            #self.progress_handler(float(aneal)/float(self.nOAneals), 0)
-            #while self.pause:
-                #self.progress_handler(float(aneal)/float(self.nOAneals), 0)
+            self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
+            while self.pause:
+                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
             pointCount = 0
             failCount = 0
             minObjectives = currentObj
@@ -180,7 +185,7 @@ class optimiser:
                 #and measure the objective values
                 objCall = objCall + 1
                 #Keep track of how many measurments have been made.
-                p = probCalc(newObjectives, currentObj, self.outTemp)
+                p = probCalc(newObjectives[0], currentObj[0], self.outTemp)
                 #calculate the acceptance probability
                 if random.uniform(0,1) < p:
                     currentParams = self.param
@@ -217,7 +222,6 @@ class optimiser:
             #if (aneal % 50) == 0:
                 #self.dumpFront()
         self.dumpFront()
-        self.plotFront()
 
 class import_algo_frame(Tkinter.Frame):
     #this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.
@@ -273,6 +277,7 @@ class import_algo_frame(Tkinter.Frame):
         setup['noIterations'] = int(self.i5.get())
         setup['failDropCount'] = int(self.i6.get())
         setup['objCallStop'] = int(self.i7.get())
+        setup['initValues'] = []
 
         return setup
 
@@ -299,16 +304,101 @@ class import_algo_prog_plot(Tkinter.Frame):
 
     def update(self):
         global store_address
-        global completed_generation
 
         self.a.clear()
         file_names = []
-        file_names.append("{0}/fronts".format(store_address))
+        file_names.append("{0}/fronts.1".format(store_address))
 
         plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
 
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
+
+class import_algo_final_plot(Tkinter.Frame):
+
+    def __init__(self, parent, pick_handler, axis_labels):
+        Tkinter.Frame.__init__(self, parent)
+
+        self.parent = parent
+
+        self.pick_handler = pick_handler
+        self.axis_labels = axis_labels
+        #self.initUi()
+
+    def initUi(self):
+        global store_address
+
+        self.parent.title("NSGA-II Results")
+
+        self.columnconfigure(0, weight=1)
+        self.columnconfigure(1, weight=0)
+
+        self.rowconfigure(0, weight=1)
+
+        self.view_mode = Tkinter.StringVar()
+        self.view_mode.set('No focus')
+
+        self.plot_frame = final_plot(self, self.axis_labels)
+
+        self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
+
+        Tkinter.Label(self, text="View mode:").grid(row=0, column=1)
+
+        self.cbx_view_mode = ttk.Combobox(self, textvariable=self.view_mode, values=('No focus', 'Best focus'))
+        self.cbx_view_mode.bind("<<ComboboxSelected>>", lambda x: self.plot_frame.initUi())
+        self.cbx_view_mode.grid(row=0, column=2)
+
+        self.grid(sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
+        self.parent.columnconfigure(0, weight=1)
+        self.parent.rowconfigure(0, weight=1)
+
+    def on_pick(self, event):
+
+        # Lookup ap values
+        my_artist = event.artist
+        x_data = my_artist.get_xdata()
+        y_data = my_artist.get_ydata()
+        ind = event.ind
+        point = tuple(zip(x_data[ind], y_data[ind]))
+
+        print "Point selected, point: {0}".format(point)
+
+        ''' By this point we have the ars, but not the aps. We get these next. '''
+
+        file_names = []
+        #for i in range(algo_settings_dict['max_gen'])
+        file_names.append("{0}/fronts.1".format(store_address))
+
+
+        fs = []
+
+        for file_name in file_names:
+            execfile(file_name)
+
+            fs.append(locals()['fronts'][0])
+
+        aggregate_front_data = []
+        for i in fs:
+            for j in i:
+                aggregate_front_data.append(j)
+        aggregate_front_results = [i[1] for i in aggregate_front_data]
+        point_number = aggregate_front_results.index(point[0])
+        point_a_params = aggregate_front_data[point_number][0]
+
+        print "ap: {0}".format(point_a_params)
+
+        ''' By this point he have the aps, but not the mps. We don't find these in the algorithm. '''
+
+
+        self.pick_handler(point[0], point_a_params)
+
+
+
+        #self.pick_handler()
+
+
+
+
 
 class final_plot(Tkinter.Frame):
     def __init__(self):
@@ -329,7 +419,7 @@ class final_plot(Tkinter.Frame):
 
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        file_names.append("{0}/fronts".format(store_address))
+        file_names.append("{0}/fronts.1".format(store_address))
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
 
