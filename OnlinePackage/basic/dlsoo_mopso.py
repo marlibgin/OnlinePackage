@@ -22,6 +22,7 @@ import matplotlib.pyplot as pyplot
 
 
 store_address = None
+completed_generation = None
 pareto_front = []
 
 # colour display codes
@@ -37,9 +38,7 @@ def nothing_function(data):
 class optimiser:
     
     #def __init__(self, interactor, store_location, population_size, generations, param_count, result_count, min_var, max_var, pmut=None, pcross=0.9, eta_m=20, eta_c=20, individuals=None, seed=None, progress_handler=None):
-    def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, individuals=None, progress_handler=None):
-        
-        self.memo = {}
+    def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, progress_handler=None):
         
         self.interactor = interactor
         self.store_location = store_location
@@ -91,48 +90,13 @@ class optimiser:
 #         file_return += "Individuals: {0}".format(self.individuals)
 #         
 #         return file_return
-
-    def memo_lookup(self, pop):
-        done = []
-        todo = []
-        for p in pop:
-            p = tuple(p)
-            if p in self.memo:
-                done.append((self.make_solution(p, self.memo[p])))
-            else:
-                todo.append(p)
-        return (done, todo)
-    
-    def evaluate(self, pop):
         
-        "evaluate population"
-        #print "POP: {0}".format(pop)
-        # now add memoization
-        result = []
-        
-        # get any cached results
-        # (randomly some members don't get mutated or crossed over)
-        (already_done, todo) = self.memo_lookup(pop)
-        
-        # calculate new points
-        ys = self.evaluate_link(pop)
-        #print "ys: {0}".format(ys)
-        
-        # store results in cache
-        for (x, y) in zip(todo, ys):
-            self.memo[x] = y
-            result.append(self.make_solution(x, y))
-            
-        result = result + already_done
-        #print result
-        return result
-    
-    def evaluate_link(self, population):
+    def evaluate_swarm(self, population):
         data = []
         
-        for in_pop in range(len(population)):
+        for particle in range(len(population)):
             # Configure machine for the measurement
-            self.interactor.set_ap(population[in_pop])
+            self.interactor.set_ap(population[particle.pos_i])
             #data.append(self.interactor.get_ar())
             all_data = self.interactor.get_ar()
             #all_data = [i.mean for i in all_data] # Pull out just the means from the returned data
@@ -141,104 +105,7 @@ class optimiser:
         #return [i[0] for i in data]
         return data
     
-    def make_new_pop(self, pop):
-    
-        # only need inputs at this stage
-        # (we are already sorted by fitness)
-        pop = [list(p.x) for p in pop]
-    
-        pop = self.selection(pop)
-        pop = self.crossover(pop)
-        pop = self.mutation(pop)
-    
-        # now evaluate the new populuation members
-        pop = self.evaluate(pop)
-    
-        return pop
-    
-    def random_population(self):
-        "produce a random population within bounds"
-        S = self.population_size
-        min_realvar = self.min_var
-        max_realvar = self.max_var
-        N = len(min_realvar)
-        X0 = []
-        for s in range(S):
-            x = [0] * N
-            for n in range(N):
-                lb = min_realvar[n]
-                ub = max_realvar[n]
-                x[n] = lb + (random.random()) * (ub - lb)
-            X0.append(x)
-        return X0
-    
-    def set_population_from_individules(self, pop):
-        individules = self.individuals
-        for i, individule in enumerate(individules):
-            pop[i] = individule
-        return pop
-    '''
-    def load_input(self, filename):
-        options = {}
-        # load variables in file into options structure
-        execfile(filename, options)
-        # some checks (better find out about missing parameters now than later)
-        schema = (("pmut_real", "float"),
-                  ("pcross_real", "float"),
-                  ("eta_m", "float"),
-                  ("eta_c", "float"),
-                  ("evaluate", "function"),
-                  ("min_realvar", "array"),
-                  ("max_realvar", "array"),
-                  ("population_size", "int"),
-                  ("generations", "int"),
-                  ("individules", "array"),
-                  ("seed", "int"),
-                  )
-    
-        fail = False
-        print "NSGA-II"
-        print "======="
-        for (name, check) in schema:
-            if not name in options:
-                print "%sERROR: input '%s' is missing%s" % (ansi_red, name, ansi_normal)
-                fail = True
-            else:
-                print "%s: %s" % (name, options[name])
-    
-        l1 = len(options["min_realvar"])
-        l2 = len(options["max_realvar"])
-    
-        if l1 != l2:
-            print "%sERROR: min_realvar is not the same length as max_realvar\n" \
-                  "(should be number of INPUT variables)%s" % (ansi_red, ansi_normal)
-            fail = True
-    
-        for (ml, mu) in zip(options["min_realvar"], options["max_realvar"]):
-            if ml > mu:
-                print "%sERROR: Maximum value must be greater than minimum value, but " \
-                      "specified value is (%f < %f)%s" % (ansi_red, ml, mu, ansi_normal)
-    
-        for i in options["individules"]:
-            if len(i) != l1:
-                print "%sERROR: an individule must have the same length as" \
-                      " the number of paramters%s" % (ansi_red, ansi_normal)
-                fail = True
-            for (ml, mu, ii) in zip(options["min_realvar"], options["max_realvar"], i):
-                if not ml <= ii <= mu:
-                    print "%sERROR: Individual out of range with paramter value %f%s" \
-                            % (ansi_red, ii, ansi_normal)
-                    fail=True
-    
-        if len(options["individules"]) > options["population_size"]:
-            print "%sERROR: more individules specified than population %s" % (ansi_red, ansi_normal)
-            fail = True
-    
-        if fail:
-            sys.exit(1)
-    
-        return options
-    '''
+
     def dump_fronts(self, fronts, generation):
         
         f = file("{0}/fronts.{1}".format(self.store_location, generation), "w")
@@ -255,24 +122,117 @@ class optimiser:
         
         pass
     
+    def pareto_remover(self,a,b):
+        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):
+            return a
+        if all(a_i < b_i for (a_i,b_i) in zip(a,b)):
+            return b
+        if all(a_i == b_i for (a_i,b_i) in zip(a,b)):
+            return b
+        else:
+            return False
+            
+    def get_pareto_objectives(self, swarm):
+        objectives = [particle[1] for particle in swarm]
+        return objectives
+
+    def pareto_test(self,a,b):
+        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):
+            return False #this particle doesn't belong on the front
+        else:
+            return True
+        
+    def find_pareto_front(self,swarm):
+        global pareto_front
+        
+        current_swarm = list(self.get_pareto_objectives(swarm))
+        indices_to_delete = []
+        
+        for i in range(len(current_swarm)):
+            for j in range(len(current_swarm)):
+                #print 'compare', current_swarm[i], 'and', current_swarm[j]
+                if i==j:
+                    continue
+                
+                particle_to_remove = self.pareto_remover(current_swarm[i], current_swarm[j])
+                if particle_to_remove == False:
+                    #print 'do nothing'
+                    continue
+                
+                else:
+                    indices_to_delete.append(current_swarm.index(particle_to_remove))
+                    #print 'remove', particle_to_remove
+                
+        indices_to_delete = sorted(set(indices_to_delete), reverse=True)
+        for i in indices_to_delete:
+            del swarm[i]
+        pareto_front = list(swarm)
+
+    def kernel_density_estimator(self, solution, current_swarm):
+        global pareto_front
+        pareto_front_positions = self.get_pareto_objectives(pareto_front)
+        #print 'pareto front', pareto_front_positions
+        kd_tree = spatial.KDTree(pareto_front_positions)
+        nearest_neighbours = [pareto_front_positions[i] for i in kd_tree.query(solution, len(solution)+1)[1]]
+        del nearest_neighbours[0]
+        
+        swarm_in_box = list(current_swarm)
+        #print 'swarm in box', swarm_in_box
+    
+        for i in range(len(solution)):
+            nearest_neighbour_coords = [row[i] for row in nearest_neighbours]
+            coords = [row[i] for row in swarm_in_box]
+            coord_boundaries = [min(nearest_neighbour_coords),max(nearest_neighbour_coords)]
+    
+            indices_to_remove = []
+            for j in range(len(swarm_in_box)):
+                if coords[j]<coord_boundaries[0] or coords[j]>coord_boundaries[1]:
+                    indices_to_remove.append(j)
+            
+        indices_to_remove = sorted(set(indices_to_remove), reverse=True)
+        for i in indices_to_remove:
+            del swarm_in_box[i]
+                    
+        return len(swarm_in_box)
+    
+    def get_leader_roulette_wheel(self, current_swarm):
+        global pareto_front
+        if len(pareto_front) < len(pareto_front[0][1])+1:
+            return []
+        pareto_front_positions = self.get_pareto_objectives(pareto_front)
+        current_swarm_objective_postions = [i.fit_i for i in current_swarm]
+        fitness = [(1/(self.kernel_density_estimator(i, current_swarm_objective_postions)+1)) for i in pareto_front_positions]
+        total_fit = sum(fitness)
+        roulette_wheel = len(fitness) * [fitness[0]/total_fit]
+        for f in range(1,len(fitness)):
+            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/total_fit
+        return roulette_wheel
+       
+    def evaluate(self, swarm, initial_evaluation=False):
+        
+        objectives = self.evaluate_swarm(swarm)
+        for particle in swarm:                
+            particle.fit_i = objectives[particle] 
+        
+            #check is this is a personal best
+            if initial_evaluation==False:
+                if self.pareto_test(particle.fit_i,particle.fit_best_i) == True:
+                    particle.pos_best_i = particle.position_i
+                    particle.fit_best_i = particle.fit_i
+                    
+            if initial_evaluation==True:
+                particle.fit_best_i = particle.fit_i
+                particle.pos_best_i = particle.position_i 
+    
+    
+    
     def optimise(self):
         
         global store_address
-        global completed_generation
+        global pareto_front
+        global completed_address
         store_address = self.store_location
-        
-        "Non-dominated sorting genetic algorithm II main loop"
-        '''
-        if not sys.argv[1:]:
-            print 'Usage: ' + sys.argv[0] + ' <nsga_input_file.py>'
-            print
-            print 'Non-dominated Sorting Genetic Algorithm II'
-            sys.exit(1)
-    
-        # load problem
-        global options
-        options = load_input(sys.argv[1])
-        '''
+
         # Make the save directory
         if not os.path.exists(self.store_location):
             os.makedirs(self.store_location)
@@ -281,47 +241,30 @@ class optimiser:
             current_ap = self.interactor.get_ap()
             self.individuals = list(self.individuals)
             self.individuals[0] = current_ap
-        
-        # seed the random number generator to ensure repeatble results
-        random.seed(self.seed)
     
         # initialize population
-        X0 = self.random_population()
-        X0 = self.set_population_from_individules(X0)
-        P = self.evaluate(X0)
-        Q = []
-        print "X0: {0}".format(X0)
-        print "P: {0}".format(P)
+        swarm = []
+        for i in range(0, self.swarm_size):
+            swarm.append(Particle(self.param_count, self.min_var, self.max_var))
+        
+        self.evaluate(swarm, initial_evaluation=True)
+        proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
+        self.find_pareto_front(proposed_pareto)
+        self.dump_fronts(pareto_front, 0)
         
         # for each generation
-        for t in range(self.generations):
-    
-            # combine parent and child populations
-            R = P + Q
-    
-    
-            # remove duplicates
-            #R = list(set(R))
-            R = remove_prop_duplicates(R)
-    
-            # find all non-dominated fronts
-            fronts = self.fast_non_dominated_sort(R)
-    
-            # calculate the density of solutions around each point
-            for f in fronts:
-                self.crowding_distance_assignment(f)
-    
-            # sort first by rank (which front) then by sparsity
-            R.sort(key = crowded_comparison_key)
-    
-            # take the best solutions that fit in our population size
-            P = R[:self.population_size]
-    
-            # tournament, crossover, mutation
-            Q = self.make_new_pop(P)
-    
-            # print out all solutions by front
-            self.dump_fronts(fronts, t)
+        for t in range(1,self.max_iter):
+            
+            leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)
+            for j in range(0, self.swarm_size):
+                swarm[j].select_leader(leader_roullete_wheel)
+                swarm[j].update_velocity()
+                swarm[j].update_position()               
+                self.evaluate(swarm)
+            
+            proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
+            self.find_pareto_front(proposed_pareto)
+            self.dump_fronts(pareto_front, t)
     
             # Signal progress
             print "generation %d" % t
@@ -332,7 +275,61 @@ class optimiser:
     
         print "DONE"
         #self.progress_handler(t+1)
+        
+class Particle:
+    def __init__(self, num_parameter, par_min, par_max):
+        self.position_i = [random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)]                                                                     #particle position
+        self.velocity_i = [random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)]        #particle velocity
+        self.pos_best_i = []                                                                     #particle's best position
+        self.leader_i = []                                                                       #particle's leader
+        self.fit_i = []                                                                          #particle fit 
+        self.fit_best_i = [] 
+        self.bounds = [par_min, par_max]
+        #particle best fit
 
+    #find particle's current fit
+    
+
+            
+    # update new velocity
+    def update_velocity(self):
+        w = 0.4                      #inertia constant
+        c1 = 2.0                    #cognitive parameter
+        c2 = 2.0                    #social parameter
+        
+        for i in range(0, self.num_parameter):
+            r1 = random.random()
+            r2 = random.random()
+            velocity_cognitive = c1 * r1 * (self.pos_best_i[i] - self.position_i[i])
+            velocity_social = c2 * r2 * (self.leader_i[i] - self.position_i[i])
+            self.velocity_i[i] = w*self.velocity_i[i] + velocity_cognitive + velocity_social
+    
+    # update new position using new velocity
+    def update_position(self):
+        
+        for i in range(0,self.num_parameter):
+            self.position_i[i]= self.position_i[i] + self.velocity_i[i]
+            
+            #adjust if particle goes above max bound
+            if self.position_i[i] > self.bounds[1][i]:
+                self.position_i[i] = self.bounds[1][i]
+                self.velocity_i[i] = -1 * self.velocity_i[i]
+                
+            #adjust if particle goes below min bound
+            if self.position_i[i] < self.bounds[0][i]:
+                self.position_i[i] = self.bounds[0][i]
+                self.velocity_i[i] = -1 * self.velocity_i[i]
+
+    def select_leader(self, roulette_wheel):
+        global pareto_front
+        if len(pareto_front) < len(pareto_front[0][1]) +1:
+            self.leader_i = random.choice(pareto_front)[0]
+            return
+        
+        r = random.random()
+        for i in range(len(pareto_front)):
+            if r <= roulette_wheel[i]:
+                self.leader_i = pareto_front[i][0]
 
 class import_algo_frame(Tkinter.Frame):
     
