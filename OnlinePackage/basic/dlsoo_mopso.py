@@ -28,9 +28,6 @@ pareto_front = ()
 ansi_red = "\x1B[31m"
 ansi_normal = "\x1B[0m"
 
-# cache of solutions
-memo = {}
-
 def nothing_function(data):
     pass
 
@@ -65,33 +62,31 @@ class optimiser:
         print "interactor.param_var_groups: {0}".format(interactor.param_var_groups)
         print "interactor.measurement_vars: {0}".format(interactor.measurement_vars)
     
-#     def save_details_file(self):
-#         
-#         file_return = ""
-#         
-#         file_return += "NSGA-II algorithm\n"
-#         file_return += "=================\n\n"
-#         file_return += "Generations: {0}\n".format(self.generations)
-#         file_return += "Population size: {0}\n\n".format(self.population_size)
-#         
-#         file_return += "Parameter count: {0}\n".format(self.param_count)
-#         file_return += "Results count: {0}\n\n".format(self.result_count)
-#         
-#         file_return += "Minimum bounds: {0}\n".format(self.min_var)
-#         file_return += "Maximum bounds: {0}\n\n".format(self.max_var)
-#         
-#         file_return += "p_mut: {0}\n".format(self.pmut)
-#         file_return += "p_cross: {0}\n".format(self.pcross)
-#         file_return += "eta_m: {0}\n".format(self.eta_m)
-#         file_return += "eta_c: {0}\n\n".format(self.eta_c)
-#         
-#         file_return += "Seed: {0}\n".format(self.seed)
-#         file_return += "Individuals: {0}".format(self.individuals)
-#         
-#         return file_return
+    def save_details_file(self):
+         
+        file_return = ""
+         
+        file_return += "MOPSO algorithm\n"
+        file_return += "=================\n\n"
+        file_return += "Iterations: {0}\n".format(self.max_iter)
+        file_return += "Swarm size: {0}\n\n".format(self.swarm_size)
+         
+        file_return += "Parameter count: {0}\n".format(self.param_count)
+        file_return += "Results count: {0}\n\n".format(self.result_count)
+         
+        file_return += "Minimum bounds: {0}\n".format(self.min_var)
+        file_return += "Maximum bounds: {0}\n\n".format(self.max_var)
+         
+        file_return += "Particle Inertia: {0}\n".format(self.inertia)
+        file_return += "Social Parameter: {0}\n".format(self.social_param)
+        file_return += "Cognitive Parameter: {0}\n".format(self.cognitive_param)
+         
+         
+        return file_return
         
     def evaluate_swarm(self, population):
-        data = []
+        results = []
+        errors = []
         #print 'population :', population
         #print 'example :', dir(population[0])
         for i in range(len(population)):
@@ -100,24 +95,25 @@ class optimiser:
             self.interactor.set_ap(population[i].position_i)
             #data.append(self.interactor.get_ar())
             all_data = self.interactor.get_ar()
-            all_data = [i.mean for i in all_data] # Pull out just the means from the returned data
-            data.append(all_data)
+            all_results = [i.mean for i in all_data] # Pull out just the means from the returned data
+            all_errors = [i.err for i in all_data]
+            results.append(all_results)
+            errors.append(all_errors)
             
         #return [i[0] for i in data]
-        print 'data', data
-        return data
+        #print 'data', data
+        return results, errors
     
 
     def dump_fronts(self, fronts, generation):
-        print 'front to dump: ',fronts
+        #print 'front to dump: ',fronts
         f = file("{0}/fronts.{1}".format(self.store_location, generation), "w")
-        f.write("fronts = (\n")
+        f.write("fronts = ((\n")
         for i, data in enumerate(fronts):
-            f.write("( # Front %d\n" % i)
             #f.write("    (%s, %s),\n" % (ff.x[:], ff[:]))
-            f.write("    ({0}, {1}, {2}),\n".format(data[0], data[1], data[2]))
+            f.write("    ({0}, {1}, {2}),\n".format(data[0], tuple(data[1]), data[2]))
             #print "\n\n\n!!!\n{0}\n!!!\n\n\n".format(ff.unc[:])
-        f.write(")\n")
+        f.write("),)\n")
         f.close()
         
         pass
@@ -208,13 +204,15 @@ class optimiser:
         roulette_wheel = len(fitness) * [fitness[0]/(total_fit+1)]
         for f in range(1,len(fitness)):
             roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/(total_fit+1)
+        print 'roulette wheel', roulette_wheel
         return roulette_wheel
        
     def evaluate(self, swarm, initial_evaluation=False):
         
-        objectives = self.evaluate_swarm(swarm)
+        objectives, errors = self.evaluate_swarm(swarm)
         for i in range(len(swarm)):                
             swarm[i].fit_i = objectives[i] 
+            swarm[i].error = errors[i]
         
             #check is this is a personal best
             if initial_evaluation==False:
@@ -251,13 +249,11 @@ class optimiser:
             #print 'first position = ', swarm[i].position_i
         
         self.evaluate(swarm, initial_evaluation=True)
-        proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
+        proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]
         print 'proposed pareto = ',proposed_pareto
         self.find_pareto_front(proposed_pareto)
         print 'new pareto is ',pareto_front
         front_to_dump = tuple(list(pareto_front))
-        for i in range(len(front_to_dump)):
-            front_to_dump[i].append(tuple([0 for i in front_to_dump[i][1]]))
         self.dump_fronts(front_to_dump, 0)
         
         # for each generation
@@ -270,12 +266,9 @@ class optimiser:
                 swarm[j].update_position()
                 self.evaluate(swarm)
             
-            proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
+            proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm] + pareto_front
             self.find_pareto_front(proposed_pareto)
             front_to_dump = list(pareto_front)
-            for i in range(len(front_to_dump)):
-                front_to_dump[i].append(tuple([0 for i in front_to_dump[i][1]]))
-                
             self.dump_fronts(front_to_dump, t)
     
             # Signal progress
@@ -297,6 +290,7 @@ class Particle:
         self.fit_i = ()                                                                          #particle fit 
         self.fit_best_i = () 
         self.bounds = (par_min, par_max)
+        self.error = ()
         #particle best fit
 
     #find particle's current fit
@@ -345,12 +339,15 @@ class Particle:
         global pareto_front
         if len(pareto_front) < len(pareto_front[0][1]) +1:
             self.leader_i = random.choice(pareto_front)[0]
+            print 'new leader is ',self.leader_i
             return
         
         r = random.random()
         for i in range(len(pareto_front)):
             if r <= roulette_wheel[i]:
                 self.leader_i = pareto_front[i][0]
+            else:
+                self.leader_i = random.choice(pareto_front)[0]
 
 class import_algo_frame(Tkinter.Frame):
     
@@ -400,8 +397,8 @@ class import_algo_frame(Tkinter.Frame):
         
         Tkinter.Label(self, text="Recommended:\nSwarm Size: 15\nMax. Iterations: 10\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
         
-        self.i0.insert(0, "5")
-        self.i1.insert(0, "10")
+        self.i0.insert(0, "15")
+        self.i1.insert(0, "4")
         self.i2.insert(0, "0.4")
         self.i3.insert(0, "2.0")
         self.i4.insert(0, "2.0")
