@@ -1,0 +1,10 @@
+import MYSA
+import modelClass
+
+interactor = modelClass.basicInteractor()
+settings = {'initValues': [], 'noIterations': 100, 'noAneals': 500,'failDropCount': 30,'passOutTempDrop': [0.8,0.8], 'passInTempDrop': [0.8,0.8,0.8],'paramCount': 3, 'objCount': 2, 'objCallStop': 10000000000}
+maxpar = [10 for i in range(3)]
+minpar = [0 for i in range(3)]
+optimiser = MYSA.optimiser(settings, interactor, 0, minpar, maxpar)
+optimiser.optimise()
+print optimiser.domFrontObjectives
