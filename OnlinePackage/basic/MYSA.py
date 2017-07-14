@@ -1,23 +1,41 @@
 #MYSA python conversion
 from __future__ import division
+#import pkg_resources
+#pkg_resources.require('numpy')
+#pkg_resources.require('scipy')
+#pkg_resources.require('matplotlib')
 import numpy
 import math
-import Tkinter
 import time
 import sys
 import os
 import random
 import scipy.stats as stats
-from matplotlib.figure import Figure
-from matplotlib.cma as cm
-from matplotlib import pyplot as pyplot
+
+import Tkinter
+import ttk
+import tkMessageBox
+
+import dls_optimiser_plot as plot
+import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.figure import Figure
+import matplotlib.cm as cm
+import matplotlib.pyplot as pyplot
 from usefulFunctions import *
+# colour display codes
+ansi_red = "\x1B[31m"
+ansi_normal = "\x1B[0m"
 #define a global store address so that the program can store the fronts for plotting
+#completed_generation is used to keep track of files that store the front infomration
 store_address = None
+completed_generation = 0
 
 #The following is a list of functions useful to the optimiser bolow
+#used to deal with the case of progress handler for the optimiser class
+def nothing_function(data):
+    pass
 
 def is_dominated(x,y):
     #Takes in two lists of numbers, x and y, to see if x dominates y.
@@ -61,6 +79,7 @@ class optimiser:
         self.passInTempDrop = settings_dict['passInTempDrop']
         self.paramCount = settings_dict['paramCount']
         self.objCount = settings_dict['objCount']
+        self.anealPlot = settings_dict['anealPlot']
         self.individuals = individuals
         self. progress_handler = progress_handler
         self.inTemp = []
@@ -69,7 +88,10 @@ class optimiser:
         self.domFrontObjectives = []
         self.domFrontErrors = []
         self.inTemp = []
-        self.progress_handler = progress_handler
+        if progress_handler = None:
+            self.progress_handler = nothing_function
+        else:
+            self.progress_handler = progress_handler
         self.objCallStop = settings_dict['objCallStop']
         self.store_location = store_location
         self.pause = False
@@ -98,7 +120,7 @@ class optimiser:
         for i in range(numTestPoints):
             self.setUnifRanPoints()
             objectiveEval = self.getObjectives()
-            testResults.append(objectiveEval)
+            testResults.append(objectiveEval[0])
         for i in range(self.objCount):
             newTemp = mean(extractColumn(testResults, i))
             self.outTemp.append(newTemp)
@@ -124,6 +146,7 @@ class optimiser:
                 dominatedElements.append(i)
         if notDom:
             self.domFrontObjectives.append(newObj[0])
+            self.domFrontErrors.append(newObj[1])
             self.domFrontParam.append(self.param)
             #now to delete the elements use x to keep track of how many are deleted
             x = 0
@@ -132,10 +155,10 @@ class optimiser:
                 del self.domFrontObjectives[i-x]
                 del self.domFrontErrors[i-x]
                 x += 1
-                2
+
     def dumpFront(self):
         #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
-        f = file("{0}/fronts.1".format(self.store_location), "w")
+        f = file("{0}/fronts.{1}".format(self.store_location, completed_generation), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
         for i in range(len(self.domFrontObjectives)):
@@ -147,9 +170,10 @@ class optimiser:
 
     def optimise(self):
         global store_address
+        global completed_generation
         store_address = self.store_location
         currentParams = []
-        currentObj = []
+        currentObj = ()
         #Two lists above for storing old values whilst new parameters are tested.
         objCall = 0
         #this variable is used to keep track of the number of times we have evaluted the objectives.
@@ -168,12 +192,9 @@ class optimiser:
         aneal = 0
         while performAneal:
             aneal += 1
-            self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
-            while self.pause:
-                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
             pointCount = 0
             failCount = 0
-            minObjectives = currentObj
+            minObjectives = currentObj[0]
             keepIterating = True
             x = 0
             #initialise the current minimum objectives. This variable will be used to keep track of the minimum objectives so as to help in calculating the new output temperture.
@@ -184,6 +205,7 @@ class optimiser:
                 newObjectives = self.getObjectives()
                 #and measure the objective values
                 objCall = objCall + 1
+                print newObjectives
                 #Keep track of how many measurments have been made.
                 p = probCalc(newObjectives[0], currentObj[0], self.outTemp)
                 #calculate the acceptance probability
@@ -193,7 +215,7 @@ class optimiser:
                     pointCount = pointCount + 1
                     self.updateParetoFront(currentObj)
                     #update the minimum objective values
-                    minObjectives = min(currentObj, minObjectives)
+                    minObjectives = min(currentObj[0], minObjectives)
                     failCount = max(math.trunc(failCount/2), 0)
                     #drop the tempertures the tempertures
                     self.inTemp = [self.passInTempDrop[i]*self.inTemp[i] for i in range(self.paramCount)]
@@ -214,13 +236,18 @@ class optimiser:
             #now set new starting point from the pareto front
             k = random.randrange(len(self.domFrontParam))
             currentParams = self.domFrontParam[k]
-            currentObj = self.domFrontObjectives[k]
+            currentObj = (self.domFrontObjectives[k], self.domFrontErrors[k])
             if aneal > self.nOAneals:
                 performAneal = False
             if objCall > self.objCallStop:
                 performAneal = False
-            #if (aneal % 50) == 0:
-                #self.dumpFront()
+            if (aneal % self.anealPlot) == 0:
+                #update the front files and let the GUI know of the progress
+                completed_generation += 1
+                self.dumpFront()
+                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
+            while self.pause:
+                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
         self.dumpFront()
 
 class import_algo_frame(Tkinter.Frame):
@@ -260,10 +287,25 @@ class import_algo_frame(Tkinter.Frame):
         self.i6 = Tkinter.Entry(self)
         self.i6.grid(row=6,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Objective call stop').grid(row=7, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Maximum number of measurements').grid(row=7, column=0, sticky=Tkinter.E)
         self.i7 = Tkinter.Entry(self)
         self.i7.grid(row=7,column=1, sticky=Tkinter.E + Tkinter.W)
 
+        Tkinter.Label(self, text='Number of aneals between plotting front:').grid(row=8, column=0, sticky=Tkinter.E)
+        self.i8 = Tkinter.Entry(self)
+        self.i8.grid(row=8, column=1, sticky=Tkinter.E + Tkinter.W)
+
+        Tkinter.Label(self, text="Recommendations:\nUse as scanning tool when good points not known and then implement GA when the front stops significantly improving\nDo not use if an objective function's best value approaches zero: Ideally the function's 'worst' value should be set to zero \nLength of cycle ~35 if ratios unchanged from default, else refer to doccumentation", justify=Tkinter.LEFT).grid(row=9, column=0, columnspan=2, sticky=Tkinter.W)
+
+        self.i0.insert(0, "3")
+        self.i1.insert(0, "2")
+        self.i2.insert(0, ':0.9; :0.9; :0.9;')
+        self.i3.insert(0, ':0.87; :0.87;')
+        self.i4.insert(0, '5')
+        self.i5.insert(0, "35")
+        self.i6.insert(0, "10")
+        self.i7.insert(0, "100000")
+        self.i8.insert(0, '1')
 
     def get_dict(self):
         #extracts the inputted settings to put in settings dictionary
@@ -278,6 +320,7 @@ class import_algo_frame(Tkinter.Frame):
         setup['failDropCount'] = int(self.i6.get())
         setup['objCallStop'] = int(self.i7.get())
         setup['initValues'] = []
+        setup['anealPlot'] = int(self.i8.get())
 
         return setup
 
@@ -304,10 +347,12 @@ class import_algo_prog_plot(Tkinter.Frame):
 
     def update(self):
         global store_address
+        global completed_generation
 
         self.a.clear()
         file_names = []
-        file_names.append("{0}/fronts.1".format(store_address))
+        for i in range(completed_generation):
+            file_names.append("{0}/fronts.{i}".format(store_address, i))
 
         plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
 
@@ -327,8 +372,9 @@ class import_algo_final_plot(Tkinter.Frame):
 
     def initUi(self):
         global store_address
+        global completed_generation
 
-        self.parent.title("NSGA-II Results")
+        self.parent.title("MOSA results")
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
@@ -367,7 +413,8 @@ class import_algo_final_plot(Tkinter.Frame):
 
         file_names = []
         #for i in range(algo_settings_dict['max_gen'])
-        file_names.append("{0}/fronts.1".format(store_address))
+        for i in range(completed_generation):
+            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
 
 
         fs = []
@@ -401,25 +448,32 @@ class import_algo_final_plot(Tkinter.Frame):
 
 
 class final_plot(Tkinter.Frame):
-    def __init__(self):
-        Tkinter.Frame.__init__(self, parent, axis_labels)
+
+    def __init__(self, parent, axis_labels):
+
+        Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
         self.axis_labels = axis_labels
 
         self.initUi()
 
-    def initUi():
+    def initUi(self):
+        global completed_generation
+        global store_address
+
         for widget in self.winfo_children():
             widget.destroy()
 
         fig = Figure(figsize=(5, 5), dpi=100)
         a = fig.add_subplot(111)
         fig.subplots_adjust(left=0.15)
+        #a.plot(range(10), [i**2 for i in range(10)])
 
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        file_names.append("{0}/fronts.1".format(store_address))
+        for i in range(completed_generation):
+            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
 
