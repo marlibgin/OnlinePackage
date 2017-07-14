@@ -1,6 +1,5 @@
 '''
 Created on 7 Jul 2017
-
 @author: James Rogers
 '''
 import random, sys
@@ -22,8 +21,8 @@ import matplotlib.pyplot as pyplot
 
 
 store_address = None
-completed_generation = None
-pareto_front = []
+completed_iteration = None
+pareto_front = ()
 
 # colour display codes
 ansi_red = "\x1B[31m"
@@ -57,10 +56,10 @@ class optimiser:
         
         self.progress_handler = progress_handler
         
-        if settings_dict['seed'] == None:
-            seed = time.time()
-        
-        self.seed = settings_dict['seed']
+#         if settings_dict['seed'] == None:
+#             seed = time.time()
+#         
+#         self.seed = settings_dict['seed']
         
         self.pause = False
         print "interactor.param_var_groups: {0}".format(interactor.param_var_groups)
@@ -93,30 +92,31 @@ class optimiser:
         
     def evaluate_swarm(self, population):
         data = []
-        
-        for particle in range(len(population)):
+        #print 'population :', population
+        #print 'example :', dir(population[0])
+        for i in range(len(population)):
+            #print 'particle parameters: ', population[i].position_i
             # Configure machine for the measurement
-            self.interactor.set_ap(population[particle.pos_i])
+            self.interactor.set_ap(population[i].position_i)
             #data.append(self.interactor.get_ar())
             all_data = self.interactor.get_ar()
-            #all_data = [i.mean for i in all_data] # Pull out just the means from the returned data
+            all_data = [i.mean for i in all_data] # Pull out just the means from the returned data
             data.append(all_data)
             
         #return [i[0] for i in data]
+        print 'data', data
         return data
     
 
     def dump_fronts(self, fronts, generation):
-        
+        print 'front to dump: ',fronts
         f = file("{0}/fronts.{1}".format(self.store_location, generation), "w")
         f.write("fronts = (\n")
-        for i, front in enumerate(fronts):
+        for i, data in enumerate(fronts):
             f.write("( # Front %d\n" % i)
-            for ff in front:
-                #f.write("    (%s, %s),\n" % (ff.x[:], ff[:]))
-                f.write("    (%s, %s, %s),\n" % (ff.x[:], ff[:], tuple(ff.unc[:])))
-                print "\n\n\n!!!\n{0}\n!!!\n\n\n".format(ff.unc[:])
-            f.write("),\n")
+            #f.write("    (%s, %s),\n" % (ff.x[:], ff[:]))
+            f.write("    ({0}, {1}, {2}),\n".format(data[0], data[1], data[2]))
+            #print "\n\n\n!!!\n{0}\n!!!\n\n\n".format(ff.unc[:])
         f.write(")\n")
         f.close()
         
@@ -197,32 +197,34 @@ class optimiser:
     
     def get_leader_roulette_wheel(self, current_swarm):
         global pareto_front
+        print 'pareto length is ',len(pareto_front)
+        print 'swarm length is ', len(current_swarm)
         if len(pareto_front) < len(pareto_front[0][1])+1:
             return []
         pareto_front_positions = self.get_pareto_objectives(pareto_front)
         current_swarm_objective_postions = [i.fit_i for i in current_swarm]
         fitness = [(1/(self.kernel_density_estimator(i, current_swarm_objective_postions)+1)) for i in pareto_front_positions]
         total_fit = sum(fitness)
-        roulette_wheel = len(fitness) * [fitness[0]/total_fit]
+        roulette_wheel = len(fitness) * [fitness[0]/(total_fit+1)]
         for f in range(1,len(fitness)):
-            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/total_fit
+            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/(total_fit+1)
         return roulette_wheel
        
     def evaluate(self, swarm, initial_evaluation=False):
         
         objectives = self.evaluate_swarm(swarm)
-        for particle in swarm:                
-            particle.fit_i = objectives[particle] 
+        for i in range(len(swarm)):                
+            swarm[i].fit_i = objectives[i] 
         
             #check is this is a personal best
             if initial_evaluation==False:
-                if self.pareto_test(particle.fit_i,particle.fit_best_i) == True:
-                    particle.pos_best_i = particle.position_i
-                    particle.fit_best_i = particle.fit_i
+                if self.pareto_test(swarm[i].fit_i,swarm[i].fit_best_i) == True:
+                    swarm[i].pos_best_i = swarm[i].position_i
+                    swarm[i].fit_best_i = swarm[i].fit_i
                     
             if initial_evaluation==True:
-                particle.fit_best_i = particle.fit_i
-                particle.pos_best_i = particle.position_i 
+                swarm[i].fit_best_i = swarm[i].fit_i
+                swarm[i].pos_best_i = swarm[i].position_i
     
     
     
@@ -230,61 +232,71 @@ class optimiser:
         
         global store_address
         global pareto_front
-        global completed_address
+        global completed_iteration
         store_address = self.store_location
 
         # Make the save directory
         if not os.path.exists(self.store_location):
             os.makedirs(self.store_location)
         
-        if self.add_current_to_individuals:
-            current_ap = self.interactor.get_ap()
-            self.individuals = list(self.individuals)
-            self.individuals[0] = current_ap
+#         if self.add_current_to_individuals:
+#             current_ap = self.interactor.get_ap()
+#             self.individuals = list(self.individuals)
+#             self.individuals[0] = current_ap
     
-        # initialize population
+        # initialise population
         swarm = []
         for i in range(0, self.swarm_size):
             swarm.append(Particle(self.param_count, self.min_var, self.max_var))
+            #print 'first position = ', swarm[i].position_i
         
         self.evaluate(swarm, initial_evaluation=True)
         proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
+        print 'proposed pareto = ',proposed_pareto
         self.find_pareto_front(proposed_pareto)
-        self.dump_fronts(pareto_front, 0)
+        print 'new pareto is ',pareto_front
+        front_to_dump = tuple(list(pareto_front))
+        for i in range(len(front_to_dump)):
+            front_to_dump[i].append(tuple([0 for i in front_to_dump[i][1]]))
+        self.dump_fronts(front_to_dump, 0)
         
         # for each generation
         for t in range(1,self.max_iter):
-            
+            print 'iteration = ',t
             leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)
             for j in range(0, self.swarm_size):
                 swarm[j].select_leader(leader_roullete_wheel)
                 swarm[j].update_velocity()
-                swarm[j].update_position()               
+                swarm[j].update_position()
                 self.evaluate(swarm)
             
             proposed_pareto = [[j.position_i,j.fit_i] for j in swarm]
             self.find_pareto_front(proposed_pareto)
-            self.dump_fronts(pareto_front, t)
+            front_to_dump = list(pareto_front)
+            for i in range(len(front_to_dump)):
+                front_to_dump[i].append(tuple([0 for i in front_to_dump[i][1]]))
+                
+            self.dump_fronts(front_to_dump, t)
     
             # Signal progress
             print "generation %d" % t
-            completed_generation = t
-            self.progress_handler(float(t) / float(self.generations), t)
+            completed_iteration = t
+            self.progress_handler(float(t) / float(self.max_iter), t)
             while self.pause:
-                self.progress_handler(float(t) / float(self.generations), t)
+                self.progress_handler(float(t) / float(self.max_iter), t)
     
         print "DONE"
         #self.progress_handler(t+1)
         
 class Particle:
     def __init__(self, num_parameter, par_min, par_max):
-        self.position_i = [random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)]                                                                     #particle position
-        self.velocity_i = [random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)]        #particle velocity
-        self.pos_best_i = []                                                                     #particle's best position
-        self.leader_i = []                                                                       #particle's leader
-        self.fit_i = []                                                                          #particle fit 
-        self.fit_best_i = [] 
-        self.bounds = [par_min, par_max]
+        self.position_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])                                                                     #particle position
+        self.velocity_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])        #particle velocity
+        self.pos_best_i = ()                                                                     #particle's best position
+        self.leader_i = ()                                                                       #particle's leader
+        self.fit_i = ()                                                                          #particle fit 
+        self.fit_best_i = () 
+        self.bounds = (par_min, par_max)
         #particle best fit
 
     #find particle's current fit
@@ -296,29 +308,38 @@ class Particle:
         w = 0.4                      #inertia constant
         c1 = 2.0                    #cognitive parameter
         c2 = 2.0                    #social parameter
-        
-        for i in range(0, self.num_parameter):
+        new_velocity = list(self.velocity_i)
+        print 'parameters = ',len(self.bounds[0])
+        print 'social = ',len(self.leader_i)
+        for i in range(0, len(self.bounds[0])):
+            print 'i = ',i
             r1 = random.random()
             r2 = random.random()
+            
             velocity_cognitive = c1 * r1 * (self.pos_best_i[i] - self.position_i[i])
             velocity_social = c2 * r2 * (self.leader_i[i] - self.position_i[i])
-            self.velocity_i[i] = w*self.velocity_i[i] + velocity_cognitive + velocity_social
+            new_velocity[i] = w*new_velocity[i] + velocity_cognitive + velocity_social
+        self.velocity_i = tuple(new_velocity)
     
     # update new position using new velocity
     def update_position(self):
-        
-        for i in range(0,self.num_parameter):
-            self.position_i[i]= self.position_i[i] + self.velocity_i[i]
+        new_position = list(self.position_i)
+        new_velocity = list(self.velocity_i)
+        for i in range(0,len(self.bounds[0])):
+            new_position[i]= new_position[i] + self.velocity_i[i]
             
             #adjust if particle goes above max bound
-            if self.position_i[i] > self.bounds[1][i]:
-                self.position_i[i] = self.bounds[1][i]
-                self.velocity_i[i] = -1 * self.velocity_i[i]
+            if new_position[i] > self.bounds[1][i]:
+                new_position[i] = self.bounds[1][i]
+                new_velocity[i] = -1 * new_velocity[i]
                 
             #adjust if particle goes below min bound
-            if self.position_i[i] < self.bounds[0][i]:
-                self.position_i[i] = self.bounds[0][i]
-                self.velocity_i[i] = -1 * self.velocity_i[i]
+            if new_position[i] < self.bounds[0][i]:
+                new_position[i] = self.bounds[0][i]
+                new_velocity[i] = -1 * new_velocity[i]
+        self.velocity_i = tuple(new_velocity)
+        self.position_i = tuple(new_position)
+            
 
     def select_leader(self, roulette_wheel):
         global pareto_front
@@ -346,56 +367,46 @@ class import_algo_frame(Tkinter.Frame):
         self.add_current_to_individuals = Tkinter.BooleanVar(self)
         self.add_current_to_individuals.set(True)
         
-        Tkinter.Label(self, text="Population size:").grid(row=0, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Swarm size:").grid(row=0, column=0, sticky=Tkinter.E)
         self.i0 = Tkinter.Entry(self)
         self.i0.grid(row=0, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Max. generations:").grid(row=1, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Max. iterations:").grid(row=1, column=0, sticky=Tkinter.E)
         self.i1 = Tkinter.Entry(self)
         self.i1.grid(row=1, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Mutation probability:").grid(row=2, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Particle Inertia:").grid(row=2, column=0, sticky=Tkinter.E)
         self.i2 = Tkinter.Entry(self)
         self.i2.grid(row=2, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Crossover probability:").grid(row=3, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Social Parameter:").grid(row=3, column=0, sticky=Tkinter.E)
         self.i3 = Tkinter.Entry(self)
         self.i3.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Eta_m:").grid(row=4, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Cognitive Parameter:").grid(row=4, column=0, sticky=Tkinter.E)
         self.i4 = Tkinter.Entry(self)
         self.i4.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Eta_c:").grid(row=5, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Parameter count:").grid(row=5, column=0, sticky=Tkinter.E)
         self.i5 = Tkinter.Entry(self)
         self.i5.grid(row=5, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Seed:").grid(row=6, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text="Result count:").grid(row=6, column=0, sticky=Tkinter.E)
         self.i6 = Tkinter.Entry(self)
         self.i6.grid(row=6, column=1, sticky=Tkinter.E+Tkinter.W)
-        self.i6.insert(0, time.time())
         
-        Tkinter.Label(self, text="Parameter count:").grid(row=7, column=0, sticky=Tkinter.E)
-        self.i7 = Tkinter.Entry(self)
-        self.i7.grid(row=7, column=1, sticky=Tkinter.E+Tkinter.W)
+        #self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
+        #self.c0.grid(row=9, column=1)
         
-        Tkinter.Label(self, text="Result count:").grid(row=8, column=0, sticky=Tkinter.E)
-        self.i8 = Tkinter.Entry(self)
-        self.i8.grid(row=8, column=1, sticky=Tkinter.E+Tkinter.W)
+        Tkinter.Label(self, text="Recommended:\nSwarm Size: 15\nMax. Iterations: 10\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
         
-        self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
-        self.c0.grid(row=9, column=1)
-        
-        Tkinter.Label(self, text="Recommended:\nMutation probability: 0.1 / (number of decision variables)\nCrossover probability: 0.9\nEta_m: 20\nEta_c: 20\nSeed: Any int or float (default is seconds since system epoch)", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
-        
-        self.i0.insert(0, "10")
+        self.i0.insert(0, "5")
         self.i1.insert(0, "10")
-        self.i2.insert(0, "0.033333")
-        self.i3.insert(0, "0.9")
-        self.i4.insert(0, "20")
-        self.i5.insert(0, "20")
-        self.i7.insert(0, "3")
-        self.i8.insert(0, "2")
+        self.i2.insert(0, "0.4")
+        self.i3.insert(0, "2.0")
+        self.i4.insert(0, "2.0")
+        self.i5.insert(0, "3")
+        self.i6.insert(0, "2")
         
     
     def get_dict(self):
@@ -404,63 +415,51 @@ class import_algo_frame(Tkinter.Frame):
         setup = {}
         
         try:
-            setup['pop_size'] = int(self.i0.get())
+            setup['swarm_size'] = int(self.i0.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Population size\": \"{0}\", could not be converted to an int".format(self.i0.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Swarm Size\": \"{0}\", could not be converted to an int".format(self.i0.get()))
             good_data = False
         
         try:
-            setup['max_gen'] = int(self.i1.get())
+            setup['max_iter'] = int(self.i1.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Max. generations\": \"{0}\", could not be converted to an int".format(self.i1.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Max. Iterations\": \"{0}\", could not be converted to an int".format(self.i1.get()))
             good_data = False
         
         try:
-            setup['pmut'] = float(self.i2.get())
+            setup['inertia'] = float(self.i2.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Mutation probability\": \"{0}\", could not be converted to a float".format(self.i2.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Particle Inertia\": \"{0}\", could not be converted to a float".format(self.i2.get()))
             good_data = False
         
         try:
-            setup['pcross'] = float(self.i3.get())
+            setup['social_param'] = float(self.i3.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Crossover probability\": \"{0}\", could not be converted to a float".format(self.i3.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Social Parameter\": \"{0}\", could not be converted to a float".format(self.i3.get()))
             good_data = False
         
         try:
-            setup['eta_m'] = float(self.i4.get())
+            setup['cognitive_param'] = float(self.i4.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Eta_m\": \"{0}\", could not be converted to a float".format(self.i4.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Cognitive Parameter\": \"{0}\", could not be converted to a float".format(self.i4.get()))
             good_data = False
         
         try:
-            setup['eta_c'] = float(self.i5.get())
+            setup['param_count'] = int(self.i5.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Eta_c\": \"{0}\", could not be converted to a float".format(self.i5.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Parameter count\": \"{0}\", could not be converted to an int".format(self.i7.get()))
             good_data = False
         
         try:
-            setup['seed'] = float(self.i6.get())
+            setup['result_count'] = int(self.i6.get())
         except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Seed\": \"{0}\", could not be converted to a float".format(self.i6.get()))
+            tkMessageBox.showerror("MOPSO settings error", "The value for \"Result count\": \"{0}\", could not be converted to an int".format(self.i8.get()))
             good_data = False
         
-        try:
-            setup['param_count'] = int(self.i7.get())
-        except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Parameter count\": \"{0}\", could not be converted to an int".format(self.i7.get()))
-            good_data = False
-        
-        try:
-            setup['result_count'] = int(self.i8.get())
-        except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Result count\": \"{0}\", could not be converted to an int".format(self.i8.get()))
-            good_data = False
-        
-        if self.add_current_to_individuals.get() == 0:
-            setup['add_current_to_individuals'] = False
-        elif self.add_current_to_individuals.get() == 1:
-            setup['add_current_to_individuals'] = True
+#         if self.add_current_to_individuals.get() == 0:
+#             setup['add_current_to_individuals'] = False
+#         elif self.add_current_to_individuals.get() == 1:
+#             setup['add_current_to_individuals'] = True
         
         if good_data:
             return setup
@@ -495,12 +494,12 @@ class import_algo_prog_plot(Tkinter.Frame):
     
     def update(self):
         global store_address
-        global completed_generation
+        global completed_iteration
         
         self.a.clear()
         
         file_names = []
-        for i in range(completed_generation + 1):
+        for i in range(completed_iteration + 1):
             file_names.append("{0}/fronts.{1}".format(store_address, i))
         
         plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
@@ -524,9 +523,9 @@ class import_algo_final_plot(Tkinter.Frame):
     
     def initUi(self):
         global store_address
-        global completed_generation
+        global completed_iteration
         
-        self.parent.title("NSGA-II Results")
+        self.parent.title("MOPSO Results")
         
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
@@ -565,7 +564,7 @@ class import_algo_final_plot(Tkinter.Frame):
         
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_generation+1):
+        for i in range(completed_iteration+1):
             file_names.append("{0}/fronts.{1}".format(store_address, i))
         
         
@@ -620,7 +619,7 @@ class final_plot(Tkinter.Frame):
         
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_generation+1):
+        for i in range(completed_iteration+1):
             file_names.append("{0}/fronts.{1}".format(store_address, i))
         
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
