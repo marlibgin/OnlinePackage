@@ -18,7 +18,7 @@ from audioop import avg
 pkg_resources.require('cothread')
 pkg_resources.require('matplotlib')
 pkg_resources.require('numpy')
-pkg_resources.require('threading')
+pkg_resources.require('scipy')
 #threading is added in to allow for pause feature
 
 import sys
