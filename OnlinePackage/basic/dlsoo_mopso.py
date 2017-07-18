@@ -1,28 +1,32 @@
 '''
+MULTI-OBJECTIVE PARTICLE SWARM OPTIMISER for use in the DLS OnlineOptimiser package. 
 Created on 7 Jul 2017
 @author: James Rogers
 '''
-import random, sys
-import time
+
+#-----------------------------------------------------------------IMPORT LIBRARIES-----------------------------------------------------------------#
+
+import random
 import os
 
 import Tkinter
 import ttk
 import tkMessageBox
-from scipy import spatial
 
+from scipy import spatial
 import dls_optimiser_plot as plot
+
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-import matplotlib.cm as cm
-import matplotlib.pyplot as pyplot
 
+#------------------------------------------------------GLOBAL VARIABLES AND USEFUL FUNCTIONS-------------------------------------------------------#
 
-store_address = None
-completed_iteration = None
-pareto_front = ()
+store_address = None                            #directory in which output data will be stored
+completed_iteration = None                      #number of completed iterations
+completed_percentage = 0.0
+pareto_front = ()                               #current pareto-front with the format (((param1,param2,...),(obj1,obj2,...),(err1,err2,...)),...)
 
 # colour display codes
 ansi_red = "\x1B[31m"
@@ -31,210 +35,310 @@ ansi_normal = "\x1B[0m"
 def nothing_function(data):
     pass
 
+#----------------------------------------------------------------OPTIMISER CLASS-------------------------------------------------------------------#
+
 class optimiser:
     
-    #def __init__(self, interactor, store_location, population_size, generations, param_count, result_count, min_var, max_var, pmut=None, pcross=0.9, eta_m=20, eta_c=20, individuals=None, seed=None, progress_handler=None):
     def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, progress_handler=None):
         
-        self.interactor = interactor
-        self.store_location = store_location
-        self.swarm_size = settings_dict['swarm_size']
-        self.max_iter = settings_dict['max_iter']
-        self.param_count = settings_dict['param_count']
-        self.result_count = settings_dict['result_count']
-        self.min_var = a_min_var
-        self.max_var = a_max_var
-        self.inertia = settings_dict['inertia']
-        self.social_param = settings_dict['social_param']
-        self.cognitive_param = settings_dict['cognitive_param']
+        self.interactor = interactor                                         #interactor with dls_optimiser_util.py
+        self.store_location = store_location                                 #location for output files
+        self.swarm_size = settings_dict['swarm_size']                        #number of particles in swarm
+        self.max_iter = settings_dict['max_iter']                            #number of iterations of algorithm
+        self.param_count = settings_dict['param_count']                      #number of parameters being varied
+        self.result_count = settings_dict['result_count']                    #number of objectives being measured
+        self.min_var = a_min_var                                             #minimum values of parameters
+        self.max_var = a_max_var                                             #minimum values of parameters
+        self.inertia = settings_dict['inertia']                              #inertia of particles in swarm
+        self.social_param = settings_dict['social_param']                    #social parameter for particles in swarm
+        self.cognitive_param = settings_dict['cognitive_param']              #cognitive parameter for particles in swarm
         
         if progress_handler == None:
             progress_handler = nothing_function
         
         self.progress_handler = progress_handler
         
-#         if settings_dict['seed'] == None:
-#             seed = time.time()
-#         
-#         self.seed = settings_dict['seed']
-        
         self.pause = False
         print "interactor.param_var_groups: {0}".format(interactor.param_var_groups)
         print "interactor.measurement_vars: {0}".format(interactor.measurement_vars)
     
     def save_details_file(self):
-         
+        """
+        Function writes a file containing details of algorithm run
+        """       
         file_return = ""
          
         file_return += "MOPSO algorithm\n"
         file_return += "=================\n\n"
         file_return += "Iterations: {0}\n".format(self.max_iter)
-        file_return += "Swarm size: {0}\n\n".format(self.swarm_size)
-         
+        file_return += "Swarm size: {0}\n\n".format(self.swarm_size)        
         file_return += "Parameter count: {0}\n".format(self.param_count)
-        file_return += "Results count: {0}\n\n".format(self.result_count)
-         
+        file_return += "Results count: {0}\n\n".format(self.result_count)         
         file_return += "Minimum bounds: {0}\n".format(self.min_var)
-        file_return += "Maximum bounds: {0}\n\n".format(self.max_var)
-         
+        file_return += "Maximum bounds: {0}\n\n".format(self.max_var)         
         file_return += "Particle Inertia: {0}\n".format(self.inertia)
         file_return += "Social Parameter: {0}\n".format(self.social_param)
         file_return += "Cognitive Parameter: {0}\n".format(self.cognitive_param)
-         
-         
-        return file_return
         
-    def evaluate_swarm(self, population):
+        return file_return
+    
+    
+    def evaluate_swarm(self, swarm):
+        """
+        Function measures the objective functions for an entire swarm.
+        
+        Args:
+            swarm: list of Particle instances ready for measurement.
+        
+        Returns:
+            results: list of calculated results for each Particle instance
+            errors: list of calculated errors for each Particle instance measurement
+        """
+        
+        global completed_percentage
+        global completed_iteration
+        
+        percentage_interval = (1./self.max_iter)/self.swarm_size                  #calculate percentage update per measurement
         results = []
         errors = []
-        #print 'population :', population
-        #print 'example :', dir(population[0])
-        for i in range(len(population)):
-            #print 'particle parameters: ', population[i].position_i
-            # Configure machine for the measurement
-            self.interactor.set_ap(population[i].position_i)
-            #data.append(self.interactor.get_ar())
-            all_data = self.interactor.get_ar()
-            all_results = [i.mean for i in all_data] # Pull out just the means from the returned data
-            all_errors = [i.err for i in all_data]
+        
+        for i in range(len(swarm)):
+            
+            self.interactor.set_ap(swarm[i].position_i)                           #configure machine for measurement
+            all_data = self.interactor.get_ar()                                   #perform measurement 
+            
+            all_results = [i.mean for i in all_data]                              #retrieve mean from measurement 
+            all_errors = [i.err for i in all_data]                                #retrieve error from measurement 
+            
             results.append(all_results)
             errors.append(all_errors)
             
-        #return [i[0] for i in data]
-        #print 'data', data
+            completed_percentage += percentage_interval                           #update percentage bar on progress plot
+            print completed_percentage,'%'
+            self.progress_handler(completed_percentage, completed_iteration)
+        
+        while self.pause:                                                         #keep update bar if algorithm paused
+                self.progress_handler(completed_percentage, completed_iteration)
+            
         return results, errors
     
 
-    def dump_fronts(self, fronts, generation):
-        #print 'front to dump: ',fronts
-        f = file("{0}/fronts.{1}".format(self.store_location, generation), "w")
+    def dump_fronts(self, fronts, iteration):
+        """
+        Function dumps data of current front in file in output directory e.g. fronts.1 will contain the first front calculated.
+        
+        Args:
+            fronts: pareto-front to be dumped
+            iteration: current iteration number
+        Returns:
+            None
+        """
+        f = file("{0}/fronts.{1}".format(self.store_location, iteration), "w")             #open file
         f.write("fronts = ((\n")
         for i, data in enumerate(fronts):
-            #f.write("    (%s, %s),\n" % (ff.x[:], ff[:]))
-            f.write("    ({0}, {1}, {2}),\n".format(data[0], tuple(data[1]), data[2]))
-            #print "\n\n\n!!!\n{0}\n!!!\n\n\n".format(ff.unc[:])
+            f.write("    ({0}, {1}, {2}),\n".format(data[0], tuple(data[1]), data[2]))     #insert each solution in front
         f.write("),)\n")
-        f.close()
+        f.close()                                                                          #close file
         
         pass
+
     
     def pareto_remover(self,a,b):
-        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):
+        """
+        Function determines which of two points is the dominant in objective space.
+        
+        Args:
+            a: list of objective values [obj1,obj2,...]
+            b: list of objective values [obj1,obj2,...]
+            
+        Returns:
+            Function will return the point that dominates the other. If neither dominates, return is False.
+        """
+        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):         #does a dominate b?
             return a
-        if all(a_i < b_i for (a_i,b_i) in zip(a,b)):
+        if all(a_i < b_i for (a_i,b_i) in zip(a,b)):         #does b dominate b?
             return b
-        if all(a_i == b_i for (a_i,b_i) in zip(a,b)):
+        if all(a_i == b_i for (a_i,b_i) in zip(a,b)):        #are the points the same?
             return b
         else:
             return False
             
     def get_pareto_objectives(self, swarm):
+        """
+        Returns a list of objectives from front like list
+        
+        Args:
+            swarm: list of solutions in the format (((param1,param2,...),(obj1,obj2,...),(err1,err2,...)),...).
+            
+        Returns:
+            list of objectives in the format [(obj1,obj2,...),(obj1,obj2,...),...]
+        """
         objectives = [particle[1] for particle in swarm]
         return objectives
 
+
     def pareto_test(self,a,b):
-        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):
-            return False #this particle doesn't belong on the front
+        """
+        Determines whether a solution should remain in a pareto front.
+        
+        Args:
+            a: list of objective values [obj1,obj2,...].
+            b: list of objective values [obj1,obj2,...].
+            
+        Returns:
+            False if a dominates b.
+            True if both a and b are non-dominant.
+        """
+        if all(a_i > b_i for (a_i,b_i) in zip(a,b)):    #does a dominate b for all objectives?
+            return False 
         else:
             return True
         
-    def find_pareto_front(self,swarm):
-        global pareto_front
         
+    def find_pareto_front(self,swarm):
+        """
+        For a given swarm of solutions, this function will determine the non-dominant set and update the pareto-front.
+        
+        Args:
+            swarm: set of solutions in the form (((param1,param2,...),(obj1,obj2,...),(err1,err2,...)),...).
+        
+        Returns:
+            None, but updates the global variable pareto_front with the new non-dominant solutions.
+        """
+        global pareto_front        
         current_swarm = list(self.get_pareto_objectives(swarm))
         indices_to_delete = []
         
-        for i in range(len(current_swarm)):
+        for i in range(len(current_swarm)):                                                      #cycle through swarm and compare objectives
             for j in range(len(current_swarm)):
-                #print 'compare', current_swarm[i], 'and', current_swarm[j]
-                if i==j:
+                
+                if i==j:                                                                         #no need to compare solution with itself 
                     continue
                 
-                particle_to_remove = self.pareto_remover(current_swarm[i], current_swarm[j])
-                if particle_to_remove == False:
-                    #print 'do nothing'
-                    continue
+                particle_to_remove = self.pareto_remover(current_swarm[i], current_swarm[j])     #determine which solution is dominant 
                 
+                if particle_to_remove == False:                                                  #if neither are dominant, leave both in front
+                    continue                
                 else:
-                    indices_to_delete.append(current_swarm.index(particle_to_remove))
-                    #print 'remove', particle_to_remove
+                    indices_to_delete.append(current_swarm.index(particle_to_remove))            #store index of solution if it is dominant
                 
         indices_to_delete = sorted(set(indices_to_delete), reverse=True)
-        for i in indices_to_delete:
+        for i in indices_to_delete:                                                              #remove dominating solutions 
             del swarm[i]
-        pareto_front = list(swarm)
+        pareto_front = list(swarm)                                                               #update global pareto_front
 
-    def kernel_density_estimator(self, solution, current_swarm):
-        global pareto_front
-        pareto_front_positions = self.get_pareto_objectives(pareto_front)
-        #print 'pareto front', pareto_front_positions
-        kd_tree = spatial.KDTree(pareto_front_positions)
-        nearest_neighbours = [pareto_front_positions[i] for i in kd_tree.query(solution, len(solution)+1)[1]]
-        del nearest_neighbours[0]
+
+    def density_estimator(self, solution, current_swarm):
+        """
+        This function counts the number of particles that are near a solution in the pareto front.
         
-        swarm_in_box = list(current_swarm)
-        #print 'swarm in box', swarm_in_box
-    
-        for i in range(len(solution)):
+        Args:
+            solution: solution in pareto front of the form (obj1,obj2,...)
+            current_swarm: list of solutions for current swarm of the form ((obj1,obj2,...),(obj1,obj2,...),...)
+            
+        Returns:
+            Number of particles near the solution in the pareto-front.
+        """
+        global pareto_front 
+        pareto_front_obj = self.get_pareto_objectives(pareto_front)                                         #obtain list of objectives of pareto front                                    
+        kd_tree = spatial.KDTree(pareto_front_obj)                                                          #form KDTree of all other particles in pareto-front
+        
+        nearest_neighbours = [pareto_front_obj[i] for i in kd_tree.query(solution, len(solution)+1)[1]]     #find dim(solution) +1 nearest neighbours to solution 
+        del nearest_neighbours[0]                                                                           #ignore closest as this is solution itself
+        
+        swarm_in_box = list(current_swarm)    
+        for i in range(len(solution)):                                                                      #define hyper-cuboid with closest neighbours at vertices
             nearest_neighbour_coords = [row[i] for row in nearest_neighbours]
             coords = [row[i] for row in swarm_in_box]
             coord_boundaries = [min(nearest_neighbour_coords),max(nearest_neighbour_coords)]
     
             indices_to_remove = []
             for j in range(len(swarm_in_box)):
-                if coords[j]<coord_boundaries[0] or coords[j]>coord_boundaries[1]:
+                if coords[j]<coord_boundaries[0] or coords[j]>coord_boundaries[1]:                          #find particle indices that lie outside hyper-cuboid
                     indices_to_remove.append(j)
             
         indices_to_remove = sorted(set(indices_to_remove), reverse=True)
         for i in indices_to_remove:
-            del swarm_in_box[i]
+            del swarm_in_box[i]                                                                             #obtain list of particles that are within bounds of hyper-cuboid                                  
                     
-        return len(swarm_in_box)
+        return len(swarm_in_box)                                                                            #return number of particles inside hyper-cuboid 
+    
     
     def get_leader_roulette_wheel(self, current_swarm):
+        """
+        Function that produces a roulette wheel selection list for solutions in pareto-front
+        
+        Args:
+            current_swarm: list of Particle instances.
+            
+        Returns;
+            roulette_wheel: list of roulette wheel probabilities inversely proportional to number of particles near each particle in the pareto-front.
+        """
         global pareto_front
-        print 'pareto length is ',len(pareto_front)
-        print 'swarm length is ', len(current_swarm)
-        if len(pareto_front) < len(pareto_front[0][1])+1:
+
+        if len(pareto_front) < len(pareto_front[0][1])+1:                                                                   #no roulette wheel possible if not enough solutions in pareto-front
             return []
-        pareto_front_positions = self.get_pareto_objectives(pareto_front)
-        current_swarm_objective_postions = [i.fit_i for i in current_swarm]
-        fitness = [(1/(self.kernel_density_estimator(i, current_swarm_objective_postions)+1)) for i in pareto_front_positions]
-        total_fit = sum(fitness)
-        roulette_wheel = len(fitness) * [fitness[0]/(total_fit+1)]
+        
+        pareto_front_positions = self.get_pareto_objectives(pareto_front)                                                   #get pareto-front solutions
+        current_swarm_objectives = [i.fit_i for i in current_swarm]                                                         #get swarm solutions 
+        
+        fitness = [(1/(self.density_estimator(i, current_swarm_objectives)+1)) for i in pareto_front_positions]             #calculate inverse of density  
+                   
+        total_fit = sum(fitness)   
+        roulette_wheel = len(fitness) * [fitness[0]/(total_fit+1)]                                                          #define roulette wheel              
+        
         for f in range(1,len(fitness)):
-            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/(total_fit+1)
-        print 'roulette wheel', roulette_wheel
+            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/(total_fit+1)                                              #calculate cumulative probabilities
+
         return roulette_wheel
        
+       
     def evaluate(self, swarm, initial_evaluation=False):
+        """
+        Function evaluates objectives for the swarm and updates best positions for each particle instance
         
-        objectives, errors = self.evaluate_swarm(swarm)
+        Args:
+            swarm: list of Particle instances
+            initial_evaluation: this should be True if this is the first iteration.
+        
+        Returns:
+            None, but updates all particle best locations in objective space for next iteration.
+        """
+        
+        objectives, errors = self.evaluate_swarm(swarm)                                    #obtain objective measurements and errors for all particles.
         for i in range(len(swarm)):                
-            swarm[i].fit_i = objectives[i] 
-            swarm[i].error = errors[i]
+            swarm[i].fit_i = objectives[i]                                                 #update current objective fit.
+            swarm[i].error = errors[i]                                                     #update current objective error.
         
-            #check is this is a personal best
             if initial_evaluation==False:
-                if self.pareto_test(swarm[i].fit_i,swarm[i].fit_best_i) == True:
+                if self.pareto_test(swarm[i].fit_i,swarm[i].fit_best_i) == True:           #check if this objective fit is a personal best for the particle.
                     swarm[i].pos_best_i = swarm[i].position_i
                     swarm[i].fit_best_i = swarm[i].fit_i
                     
-            if initial_evaluation==True:
+            if initial_evaluation==True:                                                   #for the first iteration, the fit will be the personal best. 
                 swarm[i].fit_best_i = swarm[i].fit_i
                 swarm[i].pos_best_i = swarm[i].position_i
     
     
     
     def optimise(self):
+        """
+        This function runs the optimisation algorithm. It initialises the swarm and then takes successive measurements whilst
+        updating the loaction of the swarm. It also updates the pareto-front archive after each iteration.
+        
+        Args:
+            None
+            
+        Returns:
+            None, but the pareto-front archive will have been updated with the non-dominating front.        
+        """
         
         global store_address
         global pareto_front
         global completed_iteration
         store_address = self.store_location
 
-        # Make the save directory
-        if not os.path.exists(self.store_location):
+        if not os.path.exists(self.store_location):                                               #make save directory
             os.makedirs(self.store_location)
         
 #         if self.add_current_to_individuals:
@@ -242,97 +346,103 @@ class optimiser:
 #             self.individuals = list(self.individuals)
 #             self.individuals[0] = current_ap
     
-        # initialise population
         swarm = []
-        for i in range(0, self.swarm_size):
+        for i in range(0, self.swarm_size):                                                       #initialise the swarm 
             swarm.append(Particle(self.param_count, self.min_var, self.max_var))
-            #print 'first position = ', swarm[i].position_i
         
-        self.evaluate(swarm, initial_evaluation=True)
-        proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]
-        print 'proposed pareto = ',proposed_pareto
-        self.find_pareto_front(proposed_pareto)
-        print 'new pareto is ',pareto_front
-        front_to_dump = tuple(list(pareto_front))
+        completed_iteration = 0
+        self.evaluate(swarm, initial_evaluation=True)   
+        proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]                         #define the front for sorting 
+        self.find_pareto_front(proposed_pareto)                                                   #find the non-dominating set
+        front_to_dump = tuple(list(pareto_front))                                                 #dump new front in file
         self.dump_fronts(front_to_dump, 0)
         
-        # for each generation
-        for t in range(1,self.max_iter):
-            print 'iteration = ',t
-            leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)
-            for j in range(0, self.swarm_size):
-                swarm[j].select_leader(leader_roullete_wheel)
-                swarm[j].update_velocity()
-                swarm[j].update_position()
-                self.evaluate(swarm)
-            
-            proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm] + pareto_front
-            self.find_pareto_front(proposed_pareto)
-            front_to_dump = list(pareto_front)
+        for t in range(1,self.max_iter):                                                          #begin iteration 
+            leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)                         #calculate leader roulette wheel for the swarm
+            for j in range(0, self.swarm_size):                                                   #for every particle:                                               
+                swarm[j].select_leader(leader_roullete_wheel)                                     #select leader
+                swarm[j].update_velocity(self.inertia, self.social_param, self.cognitive_param)   #update velocity   
+                swarm[j].update_position()                                                        #update position
+             
+            self.evaluate(swarm)                                                                  #evaluate new positions            
+            proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm] + pareto_front      #define front for sorting
+            self.find_pareto_front(proposed_pareto)                                               #find the non-dominating set
+            front_to_dump = list(pareto_front)                                                    #dump new front in file
             self.dump_fronts(front_to_dump, t)
-    
-            # Signal progress
-            print "generation %d" % t
-            completed_iteration = t
-            self.progress_handler(float(t) / float(self.max_iter), t)
-            while self.pause:
-                self.progress_handler(float(t) / float(self.max_iter), t)
-    
-        print "DONE"
-        #self.progress_handler(t+1)
+            
+            completed_iteration = t                                                               #track iteration number
+            
+        print "OPTIMISATION COMPLETE"
+
+
+#----------------------------------------------------------------PARTICLE CLASS--------------------------------------------------------------------#
         
 class Particle:
-    def __init__(self, num_parameter, par_min, par_max):
-        self.position_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])                                                                     #particle position
-        self.velocity_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])        #particle velocity
-        self.pos_best_i = ()                                                                     #particle's best position
-        self.leader_i = ()                                                                       #particle's leader
-        self.fit_i = ()                                                                          #particle fit 
-        self.fit_best_i = () 
-        self.bounds = (par_min, par_max)
-        self.error = ()
-        #particle best fit
-
-    #find particle's current fit
     
-
-            
-    # update new velocity
-    def update_velocity(self):
-        w = 0.4                      #inertia constant
-        c1 = 2.0                    #cognitive parameter
-        c2 = 2.0                    #social parameter
+    def __init__(self, num_parameter, par_min, par_max):
+        
+        self.position_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])        #particle's position
+        self.velocity_i = tuple([random.uniform(par_min[i],par_max[i]) for i in range(num_parameter)])        #particle's velocity
+        self.pos_best_i = ()                                                                                  #particle's best position
+        self.leader_i = ()                                                                                    #particle's leader
+        self.fit_i = ()                                                                                       #particle's fit 
+        self.fit_best_i = ()                                                                                  #particle's best fit
+        self.bounds = (par_min, par_max)                                                                      #particle's parameter bounds  
+        self.error = ()                                                                                       #particle's error in fit
+             
+             
+    def update_velocity(self, inertia, social_param, cog_param):
+        """
+        Function updates particle velocity according to particle swarm velocity equation.
+        
+        Args:
+            inertia: inertia parameter gives particles mass (float type).
+            social_param: social parameter give particles an attraction to swarm's best locations (float type).
+            cog_param: cognitive parameter gives a particle an attraction to its own best location.
+        
+        Returns:
+            None, but updates the particle's velocity attribute.
+        """
         new_velocity = list(self.velocity_i)
-        print 'parameters = ',len(self.bounds[0])
-        print 'social = ',len(self.leader_i)
-        for i in range(0, len(self.bounds[0])):
-            print 'i = ',i
-            r1 = random.random()
+        
+        for i in range(0, len(self.bounds[0])):                                                        #new velocity in each parameter dimension 
+            
+            r1 = random.random()                                                                       #random numbers between [-1,1] for random-walk nature of code
             r2 = random.random()
             
-            velocity_cognitive = c1 * r1 * (self.pos_best_i[i] - self.position_i[i])
-            velocity_social = c2 * r2 * (self.leader_i[i] - self.position_i[i])
-            new_velocity[i] = w*new_velocity[i] + velocity_cognitive + velocity_social
-        self.velocity_i = tuple(new_velocity)
+            velocity_cognitive = cog_param * r1 * (self.pos_best_i[i] - self.position_i[i])            #calculate cognitive velocity term
+            velocity_social = social_param * r2 * (self.leader_i[i] - self.position_i[i])              #calculate social velocity term
+            
+            new_velocity[i] = inertia*new_velocity[i] + velocity_cognitive + velocity_social           #calculate new velocity
+            
+        self.velocity_i = tuple(new_velocity)                                                          #update particle  velocity attribute
     
-    # update new position using new velocity
+
     def update_position(self):
+        """
+        Function updates particle position according to particle swarm position equation.
+        
+        Args:
+            None
+        
+        Returns:
+            None, but updates the particle's position.
+        """
         new_position = list(self.position_i)
         new_velocity = list(self.velocity_i)
-        for i in range(0,len(self.bounds[0])):
-            new_position[i]= new_position[i] + self.velocity_i[i]
+        for i in range(0,len(self.bounds[0])):                                                         #new position in each parameter dimension
+            new_position[i]= new_position[i] + self.velocity_i[i]                                      #calculate new position                                     
             
-            #adjust if particle goes above max bound
-            if new_position[i] > self.bounds[1][i]:
+            if new_position[i] > self.bounds[1][i]:                                                    #reflect if particle goes beyond upper bounds
                 new_position[i] = self.bounds[1][i]
                 new_velocity[i] = -1 * new_velocity[i]
                 
-            #adjust if particle goes below min bound
-            if new_position[i] < self.bounds[0][i]:
+            if new_position[i] < self.bounds[0][i]:                                                    #reflect if particle goes below lower bounds
                 new_position[i] = self.bounds[0][i]
                 new_velocity[i] = -1 * new_velocity[i]
-        self.velocity_i = tuple(new_velocity)
-        self.position_i = tuple(new_position)
+                
+        self.velocity_i = tuple(new_velocity)                                                          #update particle velocity attribute                             
+        self.position_i = tuple(new_position)                                                          #update particle position attribute   
             
 
     def select_leader(self, roulette_wheel):
@@ -360,7 +470,7 @@ class import_algo_frame(Tkinter.Frame):
         self.initUi()
     
     def initUi(self):
-        #self.parent.title("NSGA-II Settings")
+        
         self.add_current_to_individuals = Tkinter.BooleanVar(self)
         self.add_current_to_individuals.set(True)
         
