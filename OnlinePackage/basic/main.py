@@ -15,10 +15,10 @@ except ImportError:
 
 import pkg_resources
 from audioop import avg
-pkg_resources.require('cothread')
-pkg_resources.require('matplotlib')
-pkg_resources.require('numpy')
-pkg_resources.require('scipy')
+#pkg_resources.require('cothread')
+#pkg_resources.require('matplotlib')
+#pkg_resources.require('numpy')
+#pkg_resources.require('threading')
 #threading is added in to allow for pause feature
 
 import sys
@@ -31,8 +31,7 @@ import time
 import datetime
 import imp
 import pickle
-import threading
-#threading must now be imported
+import cothread
 
 import numpy
 import matplotlib
@@ -54,7 +53,7 @@ import dls_optimiser_plot as plot
 # class modified_interactor(util.dls_machine_interactor_bulk_base):
 initial_settings = None
 #used below in run optimiser
-class modified_interactor(util.sim_machine_interactor_bulk_base):
+class modified_interactor1(util.sim_machine_interactor_bulk_base):
     def mr_to_ar(self, mrs):
 
         ars = []
@@ -70,6 +69,21 @@ class modified_interactor(util.sim_machine_interactor_bulk_base):
 
         return ars
 
+class modified_interactor2(util.dls_machine_interactor_bulk_base):
+    def mr_to_ar(self, mrs):
+
+        ars = []
+
+        #for mr, mapping in zip(mrs, mr_to_ar_mapping):
+        #    ars.append(mapping(mr))
+        mr_to_ar_sign = [mrr.mr_to_ar_sign for mrr in results]
+        for mr, sign in zip(mrs, mr_to_ar_sign):
+            if sign == '+':
+                ars.append(mr)
+            elif sign == '-':
+                ars.append(-mr)
+
+        return ars
 
 
 
@@ -116,6 +130,7 @@ mr_to_ar_sign = []
 
 interactor = None
 optimiser = None
+useMachine = False
 
 mp_addresses = []
 mr_addresses = []
@@ -766,7 +781,7 @@ class show_progress(Tkinter.Frame):
 
         #self.lbl_percentage = Tkinter.Label(self.parent, text="0%")
         #self.lbl_percentage.grid(row=1, column=0)
-        self.btn_cancel = Tkinter.Button(self.parent, text="Cancel")
+        self.btn_cancel = Tkinter.Button(self.parent, text="Cancel", command=self.cancelMethod)
         self.btn_cancel.grid(row=1, column=3, sticky=Tkinter.W+Tkinter.E)
         #self.btn_cancel.pack()
 
@@ -811,6 +826,8 @@ class show_progress(Tkinter.Frame):
             self.btn_pause.config(text="Pause")
             self.parent.config(background="#d9d9d9")
 
+    def cancelMethod(self):
+        optimiser.cancel = True 
 
 
 class plot_progress(Tkinter.Frame):
@@ -996,28 +1013,60 @@ class algorithm_settings(Tkinter.Frame):
         if algo_settings_dict == "error":
             tkMessageBox.showerror("Algorithm settings error", "There was an error in one or more of the settings given. The optimisation procedure will not proceed.")
         else:
-            mp_addresses = [[mpr.mp_obj for mpr in mpgr.mp_representations] for mpgr in parameters]
-            mr_addresses = [mrr.mr_obj for mrr in results]
-            relative_settings = [mpgr.relative_setting for mpgr in parameters]
-            ap_min_var = [mpgr.ap_min for mpgr in parameters]
-            ap_max_var = [mpgr.ap_max for mpgr in parameters]
-            interactor = modified_interactor(mp_addresses, mr_addresses, set_relative=relative_settings)
+            interactorIdentity = ''
+            if useMachine:
+                interactorIdentity = 'MACHINE'
+            else:
+                interactorIdentity = 'SIMULATOR'
+            userContinue = tkMessageBox.askyesno(title='READY?', message='You are using the ' + interactorIdentity + '. ' + 'Are you sure you wish to start optimisation?', icon=tkMessageBox.WARNING)
+            if userContinue:
+                mp_addresses = [[mpr.mp_obj for mpr in mpgr.mp_representations] for mpgr in parameters]
+                mr_addresses = [mrr.mr_obj for mrr in results]
+                relative_settings = [mpgr.relative_setting for mpgr in parameters]
+                ap_min_var = [mpgr.ap_min for mpgr in parameters]
+                ap_max_var = [mpgr.ap_max for mpgr in parameters]
+                if useMachine:
+                    interactor = modified_interactor2(mp_addresses, mr_addresses, set_relative=relative_settings)
+                else:
+                    interactor = modified_interactor1(mp_addresses, mr_addresses, set_relative=relative_settings)
 
-            #ap_min_var, ap_max_var = interactor.find_a_bounds(mp_min_var, mp_max_var)
-            #print ap_min_var
-            #print ap_max_var
-            initial_mp = interactor.get_mp()
-            #print mr_addresses
-            optimiser = optimiser_wrapper.optimiser(settings_dict=algo_settings_dict,
-                                                    interactor=interactor,
-                                                    store_location=store_address,
-                                                    a_min_var=ap_min_var,
-                                                    a_max_var=ap_max_var,
-                                                    progress_handler=progress_frame.handle_progress) # Still need to add the individuals, and the progress handler
+                #ap_min_var, ap_max_var = interactor.find_a_bounds(mp_min_var, mp_max_var)
+                #print ap_min_var
+                #print ap_max_var
+                initial_mp = interactor.get_mp()
+                #print mr_addresses
+                optimiser = optimiser_wrapper.optimiser(settings_dict=algo_settings_dict,
+                                                        interactor=interactor,
+                                                        store_location=store_address,
+                                                        a_min_var=ap_min_var,
+                                                        a_max_var=ap_max_var,
+                                                        progress_handler=progress_frame.handle_progress) # Still need to add the individuals, and the progress handler
 
-            self.parent.withdraw()
-            run_optimisation()
+                self.parent.withdraw()
+                run_optimisation()
 
+class interactor_selector_frame(Tkinter.Frame):
+    def __init__(self, parent):
+        Tkinter.Frame.__init__(self, parent)
+        self.grid()
+        self.iChoice = Tkinter.StringVar()
+        self.iChoice.set('Simulator')
+        self.question1 = Tkinter.Label(self, text='Which interactor are you intending to use?')
+        self.question1.grid(row=0, column=0)
+        self.optList = ttk.Combobox(self, textvariable=self.iChoice, values=('Machine', 'Simulator'))
+        self.optList.grid(row=1,column=0)
+        self.subBtn = Tkinter.Button(self, text='Continue', command=self.setInteractor)
+        self.subBtn.grid(row=2, column=0)
+
+    def setInteractor(self):
+        global useMachine
+        item = self.iChoice.get()
+        if item == 'Machine':
+            useMachine = True
+            self.quit()
+        elif item == 'Simulator':
+            useMachine = False
+            self.quit()
 
 
 
@@ -1068,10 +1117,8 @@ def run_optimisation():
 
     progress_window.deiconify()
     progress_window.grab_set()
-    #In order to allow of pause and cancel buttons we must run the optimiser as a seperate thread as given below
-    optimiserThread = threading.Thread(target=optimiserThreadMethod)
-    #the thread will run the optimiserThreadMethod function given bolow
-    optimiserThread.start()
+    cothread.Spawn(optimiserThreadMethod)
+    cothread.Yield()
 
 
 def optimiserThreadMethod():
@@ -1111,7 +1158,11 @@ def optimiserThreadMethod():
 
 
 
-
+rootInit = Tkinter.Tk()
+rootInit.title('DLS Interactor Selector')
+initter = interactor_selector_frame(rootInit)
+initter.mainloop()
+rootInit.withdraw()
 
 root = Tkinter.Tk()
 root.title("DLS Online Optimiser")
@@ -1158,4 +1209,5 @@ algorithm_settings_window.withdraw()
 
 
 
-root.mainloop()
+cothread.Spawn(root.mainloop)
+cothread.WaitForQuit()
