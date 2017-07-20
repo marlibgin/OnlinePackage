@@ -8,10 +8,7 @@ Version 2*
 
 from __future__ import division
 
-try:
-    import matlab.engine
-except ImportError:
-    print "Could not import matlab.engine"
+print 'Loading...'
 
 import pkg_resources
 from audioop import avg
@@ -827,7 +824,7 @@ class show_progress(Tkinter.Frame):
             self.parent.config(background="#d9d9d9")
 
     def cancelMethod(self):
-        optimiser.cancel = True 
+        optimiser.cancel = True
 
 
 class plot_progress(Tkinter.Frame):
