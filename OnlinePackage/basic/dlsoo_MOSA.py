@@ -183,7 +183,7 @@ class optimiser:
         #when the optimsation is finished this is called in order to save the settings of the algorithm.
         file_return = ''
 
-        file_return += 'dlsoo_MOSA.py\n'
+        file_return += 'dlsoo_mosa.py \n'
         file_return += '===================\n\n'
         file_return += 'Number of Aneals: {0}\n'.format(self.nOAneals)
         file_return += 'Number of iterations: {0}\n'.format(self.nOIterations)
