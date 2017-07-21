@@ -49,6 +49,7 @@ import dls_optimiser_plot as plot
 # class modified_interactor(util.dls_machine_interactor_bulk_base):
 initial_settings = None
 #used below in run optimiser
+#The two classes below are for simulated interaction and machine interaction respectively.
 class modified_interactor1(util.sim_machine_interactor_bulk_base):
     def mr_to_ar(self, mrs):
 
@@ -127,6 +128,8 @@ mr_to_ar_sign = []
 interactor = None
 optimiser = None
 useMachine = False
+signConverter = []
+#Sign converter converts algo params to machine params. This is used in the plotting below.
 
 mp_addresses = []
 mr_addresses = []
@@ -248,12 +251,11 @@ class main_window(Tkinter.Frame):
 
     def browse_save_location(self):
         global store_address
-        current_time_string = datetime.datetime.fromtimestamp(time.time()).strftime('%d.%m.%Y_%H.%M.%S')
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
-        store_address = '{0}/Optimisation@{1}.format(store_directory,current_time_string)
-        print store_address
+        store_address = store_directory
+        print store_directory
 
 
     def browse_optimiser_location(self):
@@ -755,6 +757,7 @@ class show_progress(Tkinter.Frame):
         #self.initUi()
 
     def initUi(self):
+        global signConverter
         #redstyle = ttk.Style()
         #redstyle.theme_use("clam")
         #redstyle.configure("red.Horizontal.TProgressbar", foreground="red", background="red")
@@ -786,7 +789,7 @@ class show_progress(Tkinter.Frame):
         self.btn_pause.grid(row=1, column=2, sticky=Tkinter.E+Tkinter.W)
 
         # This part will display the latest plot
-        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent)
+        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent, signConverter)
         self.progress_plot.grid(row=3, column=0, columnspan=4)
         print "UI INIT"
 
@@ -1005,6 +1008,7 @@ class algorithm_settings(Tkinter.Frame):
         global interactor
         global parameters
         global results
+        global signConverter
         algo_settings_dict = self.algo_frame.get_dict()
 
         if algo_settings_dict == "error":
@@ -1022,6 +1026,11 @@ class algorithm_settings(Tkinter.Frame):
                 relative_settings = [mpgr.relative_setting for mpgr in parameters]
                 ap_min_var = [mpgr.ap_min for mpgr in parameters]
                 ap_max_var = [mpgr.ap_max for mpgr in parameters]
+                for mrr in results:
+                    if mrr.mr_to_ar_sign == '-':
+                        signConverter.append(-1)
+                    else:
+                        signConverter.append(1)
                 if useMachine:
                     interactor = modified_interactor2(mp_addresses, mr_addresses, set_relative=relative_settings)
                 else:
@@ -1081,15 +1090,14 @@ def main_window_lock_unlock(new_state):
 def save_details_files(start_time, end_time):
     global my_solver
     global the_interactor
-    global store_address
 
-    f = file("{0}/algo_details.txt".format(store_address), "w")
+    f = file("{0}/algo_details.txt".format(the_main_window.i_save_address.get()), "w")
     f.write(optimiser.save_details_file())
 
-    f = file("{0}/inter_details.txt".format(store_address), "w")
+    f = file("{0}/inter_details.txt".format(the_main_window.i_save_address.get()), "w")
     f.write(interactor.save_details_file())
 
-    f = file("{0}/controller_details.txt".format(store_address), "w")
+    f = file("{0}/controller_details.txt".format(the_main_window.i_save_address.get()), "w")
     f.write("Controller\n")
     f.write("==========\n\n")
 
@@ -1120,6 +1128,7 @@ def run_optimisation():
 
 
 def optimiserThreadMethod():
+    global signConverter
     global final_plot_frame
     global optimiser
     start_time = time.time()
@@ -1142,7 +1151,7 @@ def optimiserThreadMethod():
     progress_window.withdraw()
 
     ar_labels = [mrr.ar_label for mrr in results]
-    final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels)
+    final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels, signConverter)
     final_plot_frame.initUi()
     final_plot_window.deiconify()
 
@@ -1207,5 +1216,5 @@ algorithm_settings_window.withdraw()
 
 
 
-cothread.Spawn(root.mainloop)
+root.mainloop()
 cothread.WaitForQuit()
