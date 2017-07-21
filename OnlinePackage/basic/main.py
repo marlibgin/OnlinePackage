@@ -614,7 +614,10 @@ class add_bulk_pv(Tkinter.Frame):
                 mpgr.mp_representations.append(mpr)
             print "processed_details[0]: {0}".format(processed_details[0])
             print "mpgr to be added: {0}".format([i.mp_label for i in mpgr.mp_representations])
-            temp_interactor = modified_interactor(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
+            if useMachine:
+                temp_interactor = modified_interactor2(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
+            else:
+                temp_interactor = modified_interactor1(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
             initial_mps = temp_interactor.get_mp()
 
             if processed_details[6] == 0:
