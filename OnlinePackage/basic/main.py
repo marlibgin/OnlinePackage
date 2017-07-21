@@ -12,11 +12,9 @@ print 'Loading...'
 
 import pkg_resources
 from audioop import avg
-#pkg_resources.require('cothread')
-#pkg_resources.require('matplotlib')
-#pkg_resources.require('numpy')
-#pkg_resources.require('threading')
-#threading is added in to allow for pause feature
+pkg_resources.require('cothread')
+pkg_resources.require('matplotlib')
+pkg_resources.require('numpy')
 
 import sys
 import Tkinter
