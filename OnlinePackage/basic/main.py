@@ -15,6 +15,7 @@ from audioop import avg
 pkg_resources.require('cothread')
 pkg_resources.require('matplotlib')
 pkg_resources.require('numpy')
+pkg_resources.require('scipy')
 
 import sys
 import Tkinter
@@ -247,11 +248,12 @@ class main_window(Tkinter.Frame):
 
     def browse_save_location(self):
         global store_address
+        current_time_string = datetime.datetime.fromtimestamp(time.time()).strftime('%d.%m.%Y_%H.%M.%S')
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
-        store_address = store_directory
-        print store_directory
+        store_address = '{0}/Optimisation@{1}.format(store_directory,current_time_string)
+        print store_address
 
 
     def browse_optimiser_location(self):
@@ -1079,14 +1081,15 @@ def main_window_lock_unlock(new_state):
 def save_details_files(start_time, end_time):
     global my_solver
     global the_interactor
+    global store_address
 
-    f = file("{0}/algo_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/algo_details.txt".format(store_address), "w")
     f.write(optimiser.save_details_file())
 
-    f = file("{0}/inter_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/inter_details.txt".format(store_address), "w")
     f.write(interactor.save_details_file())
 
-    f = file("{0}/controller_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/controller_details.txt".format(store_address), "w")
     f.write("Controller\n")
     f.write("==========\n\n")
 
