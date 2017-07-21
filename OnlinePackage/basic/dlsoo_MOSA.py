@@ -66,10 +66,11 @@ def addRanGuass(params, temp, upBound, downBound):
     return newPoint
 
 class optimiser:
+    #This is the optimiser class which deals with the actual optimisation process.
     def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, individuals=None, progress_handler=None):
         self.interactor = interactor
-        self.param = settings_dict['initValues']
-        self.initParam = settings_dict['initValues']
+        self.param = []
+        self.initParam = []
         self.up = a_max_var
         self.down = a_min_var
         self.nOIterations = settings_dict['noIterations']
@@ -77,8 +78,8 @@ class optimiser:
         self.failDropCount = settings_dict['failDropCount']
         self.passOutTempDrop = settings_dict['passOutTempDrop']
         self.passInTempDrop = settings_dict['passInTempDrop']
-        self.paramCount = settings_dict['paramCount']
-        self.objCount = settings_dict['objCount']
+        self.paramCount = len(interactor.param_var_groups)
+        self.objCount = len(interactor.measurement_vars)
         self.anealPlot = settings_dict['anealPlot']
         self.individuals = individuals
         self.progress_handler = progress_handler
@@ -95,6 +96,7 @@ class optimiser:
         self.objCallStop = settings_dict['objCallStop']
         self.store_location = store_location
         self.pause = False
+        self.cancel = False
         #pause is used to allow the main GUI to pause the algorithm.
 
     def getObjectives(self):
@@ -129,7 +131,8 @@ class optimiser:
         #set the new ouput temperture. Used after every aneal
         zero = True
         while zero:
-            self.outTemp = [abs(random.gauss(2*objMin[i],4*abs(objMin[i]))) for i in range(self.objCount)]
+            self.outTemp = [abs(random.gauss(2*(objMin[i]),4*abs(objMin[i]))) for i in range(self.objCount)]
+            #The new tempertures are based on a normal distrobution with mean and standard deviation based on min, max obj values from the previous aneal.
             if not (0 in self.outTemp):
                 zero = False
 
@@ -177,9 +180,10 @@ class optimiser:
         pass
 
     def save_details_file(self):
+        #when the optimsation is finished this is called in order to save the settings of the algorithm.
         file_return = ''
 
-        file_return += 'MOSA Algorithm \n'
+        file_return += 'dlsoo_MOSA.py\n'
         file_return += '===================\n\n'
         file_return += 'Number of Aneals: {0}\n'.format(self.nOAneals)
         file_return += 'Number of iterations: {0}\n'.format(self.nOIterations)
@@ -196,13 +200,17 @@ class optimiser:
 
     def optimise(self):
         global store_address
+        #Store address keeps track of where we store the output of dumpFront
         global completed_generation
+        #completed_generation keeps track of how many fronts have been saved.
         store_address = self.store_location
         currentParams = []
         currentObj = ()
         #Two lists above for storing old values whilst new parameters are tested.
         objCall = 0
         #this variable is used to keep track of the number of times we have evaluted the objectives.
+        collectivePointCount = 0
+        #this varaible is used to keep track of progress
         if self.initParam == []:
             self.setUnifRanPoints()
         currentParams = self.param
@@ -216,6 +224,7 @@ class optimiser:
         self.inTemp = [(self.up[i] - self.down[i])/2 for i in range(self.paramCount)]
         performAneal = True
         aneal = 0
+        maxPoints = self.nOAneals*self.nOIterations
         while performAneal:
             aneal += 1
             pointCount = 0
@@ -239,16 +248,19 @@ class optimiser:
                     currentParams = self.param
                     currentObj = newObjectives
                     pointCount = pointCount + 1
+                    collectivePointCount += 1
                     self.updateParetoFront(currentObj)
                     #update the minimum objective values
-                    minObjectives = min(currentObj[0], minObjectives)
+                    minObjectives = [min(currentObj[0][i], minObjectives[i]) for i in range(self.objCount)]
                     failCount = max(math.trunc(failCount/2), 0)
                     #drop the tempertures the tempertures
                     self.inTemp = [self.passInTempDrop[i]*self.inTemp[i] for i in range(self.paramCount)]
-                    self.outTemp = [self.passInTempDrop[i]*self.outTemp[i] for i in range(self.objCount)]
+                    self.outTemp = [self.passOutTempDrop[i]*self.outTemp[i] for i in range(self.objCount)]
+                    self.progress_handler(float(collectivePointCount)/float(maxPoints), collectivePointCount)
+                    #update the progress
                 else:
                     failCount = failCount + 1
-                    print 'Fail count: {0}'.format(failCount)
+                    #print 'Fail count: {0}'.format(failCount)
                     #reduce input temperture slightly
                     self.inTemp = [0.95**(max(self.failDropCount, failCount) - self.failDropCount)*self.inTemp[i] for i in range(self.paramCount)]
                 #check to see if enough ponits have been checked and if so leave this loop
@@ -256,25 +268,41 @@ class optimiser:
                     keepIterating = False
                 elif x == (self.nOIterations*10):
                     print 'failed to complete in 10*(number of iterations) check code'
+                    print pointCount
                     keepIterating = False
+                elif objCall >= self.objCallStop:
+                    keepIterating == False
+                    print 'Exceeded the maximum number of measurements'
+                elif self.cancel:
+                    keepIterating = False
+                while self.pause:
+                    #if it is in pause mode this will keep it paused
+                    self.progress_handler(float(collectivePointCount)/float(maxPoints), collectivePointCount)
+            maxPoints = maxPoints + pointCount - self.nOIterations
+            #update, based on current information, the maximum number of points the algorithm will try.
             #set the new tempertures for a new anneal
             self.setNewInTemp()
             self.setNewOutTemp(minObjectives)
-            #now set new starting point from the pareto front
-            k = random.randrange(len(self.domFrontParam))
-            currentParams = self.domFrontParam[k]
-            currentObj = (self.domFrontObjectives[k], self.domFrontErrors[k])
+            #now set new starting point from the pareto front by method outlined in report
+            objCollect = [[y[i] for y in self.domFrontObjectives] for i in range(self.objCount)]
+            minParetoObj = [min(obj) for obj in objCollect]
+            maxParetoObj = [max(obj) for obj in objCollect]
+            ranPoint = [random.uniform(minParetoObj[i], maxParetoObj[i]) for i in range(self.objCount)]
+            distances = [sum([(obj[i] - ranPoint[i])**2 for i in range(self.objCount)]) for obj in self.domFrontObjectives]
+            newPoint = distances.index(min(distances))
+            currentObj = (self.domFrontObjectives[newPoint], self.domFrontErrors[newPoint])
+            currentParams = self.domFrontParam[newPoint]
             if aneal >= self.nOAneals:
                 performAneal = False
-            if objCall >= self.objCallStop:
+            elif objCall >= self.objCallStop:
+                performAneal = False
+            elif self.cancel:
                 performAneal = False
             if (aneal % self.anealPlot) == 0:
                 #update the front files and let the GUI know of the progress
                 completed_generation += 1
                 self.dumpFront()
-                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
-            while self.pause:
-                self.progress_handler(float(aneal)/float(self.nOAneals), aneal)
+                self.progress_handler(float(collectivePointCount)/float(maxPoints), collectivePointCount)
         self.dumpFront()
         print objCall
 
@@ -287,13 +315,8 @@ class import_algo_frame(Tkinter.Frame):
 
     def initUi(self):
         #this generates a number of widgets in the algorithm frame to input the settings with.
-        Tkinter.Label(self, text='Parameter count:').grid(row=0, column=0, sticky=Tkinter.E)
-        self.i0 = Tkinter.Entry(self)
-        self.i0.grid(row=0,column=1, sticky=Tkinter.E + Tkinter.W)
-
-        Tkinter.Label(self, text='Objective count:').grid(row=1, column=0, sticky=Tkinter.E)
-        self.i1 = Tkinter.Entry(self)
-        self.i1.grid(row=1, column=1, sticky = Tkinter.E + Tkinter.W)
+        self.add_current_to_individuals = Tkinter.BooleanVar(self)
+        self.add_current_to_individuals.set(True)
 
         Tkinter.Label(self, text='Input temperture drops:').grid(row=2, column=0, sticky=Tkinter.E)
         self.i2 = Tkinter.Entry(self)
@@ -323,42 +346,47 @@ class import_algo_frame(Tkinter.Frame):
         self.i8 = Tkinter.Entry(self)
         self.i8.grid(row=8, column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text="Recommendations:\nUse as scanning tool when good points not known and then implement GA when the front stops significantly improving\nDo not use if an objective function's best value approaches zero: Ideally the function's 'worst' value should be set to zero \nLength of cycle ~35 if ratios unchanged from default, else refer to doccumentation", justify=Tkinter.LEFT).grid(row=9, column=0, columnspan=2, sticky=Tkinter.W)
+        self.c0 = Tkinter.Checkbutton(self, text='Use current machine state', variable=self.add_current_to_individuals)
+        self.c0.grid(row=9,column=0)
 
-        self.i0.insert(0, "3")
-        self.i1.insert(0, "2")
+        Tkinter.Label(self, text="Recommendations:\nUse as scanning tool when good points not known and then implement GA when the front stops significantly improving\nDo not use if an objective function's best value approaches zero: Ideally the function's 'worst' value should be set to zero \nLength of cycle ~35 if ratios unchanged from default, else refer to doccumentation", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
+
         self.i2.insert(0, ':0.9; :0.9; :0.9;')
         self.i3.insert(0, ':0.87; :0.87;')
         self.i4.insert(0, '5')
         self.i5.insert(0, "35")
-        self.i6.insert(0, "10")
-        self.i7.insert(0, "100000")
+        self.i6.insert(0, "1")
+        self.i7.insert(0, "500")
         self.i8.insert(0, '1')
 
     def get_dict(self):
         #extracts the inputted settings to put in settings dictionary
         setup = {}
 
-        setup['paramCount'] = int(self.i0.get())
-        setup['objCount'] = int(self.i1.get())
         setup['passInTempDrop'] = extractNumbers(self.i2.get())
         setup['passOutTempDrop'] = extractNumbers(self.i3.get())
         setup['noAneals'] = int(self.i4.get())
         setup['noIterations'] = int(self.i5.get())
         setup['failDropCount'] = int(self.i6.get())
         setup['objCallStop'] = int(self.i7.get())
-        setup['initValues'] = []
         setup['anealPlot'] = int(self.i8.get())
+
+        if self.add_current_to_individuals.get() == 0:
+            setup['add_current_to_individuals'] = False
+        elif self.add_current_to_individuals.get() == 1:
+            setup['add_current_to_individuals'] = True
+
 
         return setup
 
 class import_algo_prog_plot(Tkinter.Frame):
 
-    def __init__(self, parent):
+    def __init__(self, parent, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
+        self.signConverter = signConverter
 
         self.initUi()
 
@@ -382,17 +410,18 @@ class import_algo_prog_plot(Tkinter.Frame):
         for i in range(completed_generation):
             file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
 
-        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
+        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"], self.signConverter)
 
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
 
 class import_algo_final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, pick_handler, axis_labels):
+    def __init__(self, parent, pick_handler, axis_labels, signConverter):
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
+        self.signConverter = signConverter
 
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
@@ -412,7 +441,7 @@ class import_algo_final_plot(Tkinter.Frame):
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
 
-        self.plot_frame = final_plot(self, self.axis_labels)
+        self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
 
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
 
@@ -477,11 +506,12 @@ class import_algo_final_plot(Tkinter.Frame):
 
 class final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, axis_labels):
+    def __init__(self, parent, axis_labels, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
+        self.signConverter = signConverter
         self.axis_labels = axis_labels
 
         self.initUi()
@@ -503,7 +533,7 @@ class final_plot(Tkinter.Frame):
         for i in range(completed_generation):
             file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
 
-        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
+        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
 
         canvas = FigureCanvasTkAgg(fig, self)
         canvas.mpl_connect('pick_event', self.parent.on_pick)
