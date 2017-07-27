@@ -1,8 +1,6 @@
 '''
-
 Version 2*
 2016-07-27 16:00
-
 '''
 
 
@@ -810,7 +808,7 @@ class show_progress(Tkinter.Frame):
 
         #if generation >= 1:
             #plot.intermediate_plot("{0}/fronts.{1}".format(the_main_window.i_save_address.get(), generation-1))
-        print normalised_percentage
+
         progress.set(normalised_percentage * 100)
         progress_frame.update()
 
@@ -1127,6 +1125,7 @@ def run_optimisation():
 
     progress_window.deiconify()
     progress_window.grab_set()
+    optimiserThreadMethod()
     cothread.Spawn(optimiserThreadMethod)
     cothread.Yield()
 
@@ -1169,14 +1168,21 @@ def optimiserThreadMethod():
 
 
 
-rootInit = Tkinter.Tk()
-rootInit.title('DLS Interactor Selector')
-initter = interactor_selector_frame(rootInit)
-initter.mainloop()
-rootInit.withdraw()
+# rootInit = Tkinter.Tk()
+# rootInit.title('DLS Interactor Selector')
+# initter = interactor_selector_frame(rootInit)
+# initter.mainloop()
+# rootInit.withdraw()
 
 root = Tkinter.Tk()
 root.title("DLS Online Optimiser")
+
+def yielder():
+    cothread.Yield()
+    root.after(100, yielder)
+root.after(100, yielder)
+
+
 
 progress = Tkinter.DoubleVar()
 progress.set(0.00)
@@ -1218,7 +1224,14 @@ algorithm_settings_window.withdraw()
 #algorithm_settings_frame.load_algo_frame("/dls/physics/students/zex19517/main_implementations/GUI/update_20160805/test_algo_module.py")
 #algorithm_settings_frame.initUi()
 
+@cothread.Spawn
+def ticker():
+    while True:
+        print 'tick'
+        cothread.Sleep(5)
+    
 
 
 root.mainloop()
+print 'returned from mainloop'
 cothread.WaitForQuit()
