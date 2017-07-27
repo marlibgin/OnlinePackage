@@ -2,9 +2,7 @@ from __future__ import division
 
 import pkg_resources
 from audioop import avg
-#pkg_resources.require('cothread')
-#pkg_resources.require('matplotlib')
-#pkg_resources.require('numpy')
+import operator
 
 import matplotlib.pyplot as pyplot
 import matplotlib.cm as cm
@@ -45,8 +43,24 @@ def plot_pareto_fronts(file_names, ax, axis_labels, signConverter):
         px_vals = [x for (x, y) in sorted(zip(x_vals, y_vals))]
         py_vals = [y for (x, y) in sorted(zip(x_vals, y_vals))]
 
-        ax.plot(px_vals, py_vals, color=colors[nf], marker='.', picker=5)
+        ax.plot(px_vals, py_vals, color=colors[nf], marker='D', linestyle='None',picker=5)
+        
+        coords = zip(px_vals,py_vals)
+        coords.sort(key=operator.itemgetter(0))
 
+        new_coords = []
+
+        for i in range(len(coords)-1):
+            new_coords.append(coords[i])
+            imaginary_point = (coords[i+1][0],coords[i][1])
+            new_coords.append(imaginary_point)
+
+        new_coords.append(coords[-1])
+        new_x = [x[0] for x in new_coords]
+        new_y = [y[1] for y in new_coords]
+        
+        ax.plot(new_x, new_y, color=colors[nf], linestyle='--')
+        
         x_vals = []
         y_vals = []
 
@@ -104,9 +118,39 @@ def plot_pareto_fronts_interactive(file_names, ax, axis_labels, interactor, call
             #ax.plot(px_vals, py_vals, color=colors[nf], marker='.', picker=5)
 
             if nf == len(fs) - 1:
-                ax.plot(px_vals, py_vals, color=colors[nf], marker='.', picker=5, linewidth=2)
+                ax.plot(px_vals, py_vals, color=colors[nf], marker='D', picker=5, linestyle='None')
+                coords = zip(px_vals,py_vals)
+                coords.sort(key=operator.itemgetter(0))
+
+                new_coords = []
+
+                for i in range(len(coords)-1):
+                    new_coords.append(coords[i])
+                    imaginary_point = (coords[i+1][0],coords[i][1])
+                    new_coords.append(imaginary_point)
+
+                new_coords.append(coords[-1])
+                new_x = [x[0] for x in new_coords]
+                new_y = [y[1] for y in new_coords]
+        
+                ax.plot(new_x, new_y, color=colors[nf], linewidth=2)
             else:
-                ax.plot(px_vals, py_vals, color=colors[nf], marker='.')
+                ax.plot(px_vals, py_vals, color=colors[nf], marker='.', linestyle='None')
+                coords = zip(px_vals,py_vals)
+                coords.sort(key=operator.itemgetter(0))
+
+                new_coords = []
+
+                for i in range(len(coords)-1):
+                    new_coords.append(coords[i])
+                    imaginary_point = (coords[i+1][0],coords[i][1])
+                    new_coords.append(imaginary_point)
+
+                new_coords.append(coords[-1])
+                new_x = [x[0] for x in new_coords]
+                new_y = [y[1] for y in new_coords]
+        
+                ax.plot(new_x, new_y, color=colors[nf], linestyle='--')
 
             x_vals = []
             y_vals = []
