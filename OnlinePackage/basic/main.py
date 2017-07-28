@@ -253,7 +253,9 @@ class main_window(Tkinter.Frame):
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
-        store_address = '{0}'.format(store_directory)
+        store_address = '{0}/Optimisation@{1}'.format(store_directory, current_time_string)
+        if not os.path.exists(store_address):                                               #make save directory
+            os.makedirs(store_address)
         print store_address
 
 
@@ -1235,3 +1237,5 @@ def ticker():
 root.mainloop()
 print 'returned from mainloop'
 cothread.WaitForQuit()
+
+
