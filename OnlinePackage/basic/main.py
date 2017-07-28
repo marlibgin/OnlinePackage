@@ -123,6 +123,8 @@ class mr_representation:
 #mr_to_ar_mapping = []
 mr_to_ar_sign = []
 
+optimiserNames = ('MOPSO', 'MOSA', 'NSGA2', 'RCDS')
+optimiserFiles = {'MOPSO': 'dlsoo_mopso.py', 'MOSA': 'dlsoo_MOSA.py', 'NSGA2': 'dlsoo-nsga2.py', 'RCDS': 'dlsoo_RCDS.py'}
 interactor = None
 optimiser = None
 useMachine = False
@@ -226,11 +228,10 @@ class main_window(Tkinter.Frame):
 
         ttk.Separator(self.parent, orient='horizontal').grid(row=5, column=0, columnspan=6, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
 
-        Tkinter.Label(self.parent, text="Algorithm file:").grid(row=6, column=0, sticky=Tkinter.E)
-        self.i_algo_address = Tkinter.Entry(self.parent)
-        self.i_algo_address.grid(row=6, column=1, columnspan=4, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
-        self.btn_browse_algo_address = Tkinter.Button(self.parent, text="Browse...", command=self.browse_optimiser_location)
-        self.btn_browse_algo_address.grid(row=6, column=5, sticky=Tkinter.E+Tkinter.W)
+        self.optimiserChoice = Tkinter.StringVar()
+        Tkinter.Label(self.parent, text="Algorithm:").grid(row=6, column=0, sticky=Tkinter.E)
+        self.algo = ttk.Combobox(self.parent, textvariable=self.optimiserChoice, values=optimiserNames)
+        self.algo.grid(row=6, column=1, columnspan=4, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
 
         ttk.Separator(self.parent, orient='horizontal').grid(row=7, column=0, columnspan=6, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
 
@@ -246,7 +247,6 @@ class main_window(Tkinter.Frame):
         self.btn_save_config = Tkinter.Button(self.parent, text="Save configuration", command=self.save_config)
         self.btn_save_config.grid(row=8, column=1, sticky=Tkinter.E+Tkinter.W)
 
-
     def browse_save_location(self):
         global store_address
         current_time_string = datetime.datetime.fromtimestamp(time.time()).strftime('%d.%m.%Y_%H.%M.%S')
@@ -257,15 +257,6 @@ class main_window(Tkinter.Frame):
         if not os.path.exists(store_address):                                               #make save directory
             os.makedirs(store_address)
         print store_address
-
-
-    def browse_optimiser_location(self):
-        global optimiser_wrapper_address
-        address = tkFileDialog.askopenfilename()
-        self.i_algo_address.delete(0, 'end')
-        self.i_algo_address.insert(0, address)
-        optimiser_wrapper_address = address
-        print address
 
     def show_add_pv_window(self):
         add_pv_window.deiconify()
@@ -304,6 +295,8 @@ class main_window(Tkinter.Frame):
 
 
     def next_button(self):
+        global optimiser_wrapper_address
+        optimiser_wrapper_address = optimiserFiles[self.optimiserChoice.get()]
         add_obj_func_window.withdraw()
         add_pv_window.withdraw()
         add_bulk_pv_window.withdraw()
@@ -1237,5 +1230,3 @@ def ticker():
 root.mainloop()
 print 'returned from mainloop'
 cothread.WaitForQuit()
-
-
