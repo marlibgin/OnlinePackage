@@ -1,5 +1,5 @@
 '''
-DLS-OnlineOptimiser: A flexible online optimisation package for use on the Diamond machine. 
+DLS-OnlineOptimiser: A flexible online optimisation package for use on the Diamond machine.
 Version 3
 @authors: David Obee, James Rogers and Greg Henderson.
 '''
@@ -725,6 +725,7 @@ class add_obj_func(Tkinter.Frame):
         self.b2.grid(row=4, column=2, sticky=Tkinter.E+Tkinter.W)
 
     def add_pv_to_list(self):
+        global results
 
         mrr = mr_representation()
         mrr.mr_obj = util.dls_measurement_var(self.i0.get(), float(self.i1.get()), float(self.i2.get()))
@@ -741,7 +742,7 @@ class add_obj_func(Tkinter.Frame):
         iid = the_main_window.Toutput_params.insert('', 'end', text=self.i0.get(), values=(self.i1.get(), self.i2.get(), mrr.max_min_text))
         mrr.list_iid = iid
         mrr.mr_label = self.i0.get()
-        mrr.ar_label = "{0}{1}".format(mrr.max_min_sign, self.i0.get())
+        mrr.ar_label = self.i0.get()
 
         results.append(mrr)
 
@@ -795,7 +796,8 @@ class show_progress(Tkinter.Frame):
         self.btn_pause.grid(row=1, column=2, sticky=Tkinter.E+Tkinter.W)
 
         # This part will display the latest plot
-        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent, signConverter)
+        ar_labels = [mrr.ar_label for mrr in results]
+        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent, ar_labels, signConverter)
         self.progress_plot.grid(row=3, column=0, columnspan=4)
         print "UI INIT"
 
@@ -1243,5 +1245,3 @@ def ticker():
 root.mainloop()
 print 'returned from mainloop'
 cothread.WaitForQuit()
-
-
