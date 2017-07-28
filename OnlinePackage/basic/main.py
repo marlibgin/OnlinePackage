@@ -253,7 +253,7 @@ class main_window(Tkinter.Frame):
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
-        store_address = '{0}/Optimisation@{1}'.format(store_directory,current_time_string)
+        store_address = '{0}'.format(store_directory)
         print store_address
 
 
@@ -1056,6 +1056,8 @@ class algorithm_settings(Tkinter.Frame):
 class interactor_selector_frame(Tkinter.Frame):
     def __init__(self, parent):
         Tkinter.Frame.__init__(self, parent)
+        root.withdraw()
+        self.parent = parent
         self.grid()
         self.iChoice = Tkinter.StringVar()
         self.iChoice.set('Simulator')
@@ -1071,10 +1073,12 @@ class interactor_selector_frame(Tkinter.Frame):
         item = self.iChoice.get()
         if item == 'Machine':
             useMachine = True
-            self.quit()
+            self.parent.withdraw()
+            root.deiconify()
         elif item == 'Simulator':
             useMachine = False
-            self.quit()
+            self.parent.withdraw()
+            root.deiconify()
 
 
 
@@ -1125,9 +1129,7 @@ def run_optimisation():
 
     progress_window.deiconify()
     progress_window.grab_set()
-    optimiserThreadMethod()
     cothread.Spawn(optimiserThreadMethod)
-    cothread.Yield()
 
 
 def optimiserThreadMethod():
@@ -1168,14 +1170,12 @@ def optimiserThreadMethod():
 
 
 
-# rootInit = Tkinter.Tk()
-# rootInit.title('DLS Interactor Selector')
-# initter = interactor_selector_frame(rootInit)
-# initter.mainloop()
-# rootInit.withdraw()
 
 root = Tkinter.Tk()
 root.title("DLS Online Optimiser")
+rootInit = Tkinter.Toplevel(root)
+rootInit.title('DLS Interactor Selector')
+initter = interactor_selector_frame(rootInit)
 
 def yielder():
     cothread.Yield()
@@ -1229,7 +1229,7 @@ def ticker():
     while True:
         print 'tick'
         cothread.Sleep(5)
-    
+
 
 
 root.mainloop()
