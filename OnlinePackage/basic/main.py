@@ -124,8 +124,16 @@ class mr_representation:
 #mr_to_ar_mapping = []
 mr_to_ar_sign = []
 
-optimiserNames = ('MOPSO', 'MOSA', 'NSGA2', 'RCDS')
-optimiserFiles = {'MOPSO': 'dlsoo_mopso.py', 'MOSA': 'dlsoo_mosa.py', 'NSGA2': 'dlsoo-nsga2.py', 'RCDS': 'dlsoo_RCDS.py'}
+optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
+                  'Multi-Objective Simulated Annealing (MOSA)',
+                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)',
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)')
+
+optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
+                  'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
+                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_RCDS.py'}
+
 interactor = None
 optimiser = None
 useMachine = False
@@ -990,7 +998,7 @@ class algorithm_settings(Tkinter.Frame):
 
         ttk.Separator(self.parent, orient="horizontal").grid(row=1, pady=10, padx=10, sticky=Tkinter.E+Tkinter.W, columnspan=2)
 
-        b0 = Tkinter.Button(self.parent, text="Next...", command=self.set_settings)
+        b0 = Tkinter.Button(self.parent, text="Start...", bg="red", command=self.set_settings)
         b0.grid(row=2, column=1, sticky=Tkinter.E+Tkinter.W)
 
 
@@ -1008,6 +1016,7 @@ class algorithm_settings(Tkinter.Frame):
         global parameters
         global results
         global signConverter
+        global store_address
         algo_settings_dict = self.algo_frame.get_dict()
 
         if algo_settings_dict == "error":
@@ -1133,10 +1142,12 @@ def optimiserThreadMethod():
     global signConverter
     global final_plot_frame
     global optimiser
+    global results
+    global store_address
     start_time = time.time()
 
     optimiser.optimise()
-
+    print results
 
     end_time = time.time()
 
@@ -1224,7 +1235,7 @@ algorithm_settings_window.withdraw()
 @cothread.Spawn
 def ticker():
     while True:
-        print 'tick'
+        #print 'tick'
         cothread.Sleep(5)
 
 
