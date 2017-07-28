@@ -227,7 +227,7 @@ class optimiser:
             self.normParam = [initialVec[i] + alpha*searchDirection[i] for i in range(self.paramCount)]
             funcTest = self.getObjective()
             vecFuncTest.append([self.normParam, funcTest, alpha])
-        #now combine all points into one lit
+        #now combine all points into one list
         vecFuncList = vecFuncTest + vecFunc0List
         #and sort the list according to the value of alpha
         vecFuncList = sorted(vecFuncList, key = lambda i: i[2])
@@ -242,9 +242,11 @@ class optimiser:
         print p
         fittedValues = [p[0]*(x[i]**2) + p[1]*x[i] + p[2] for i in range(len(x))]
         pyplot.plot(x,fittedValues)
-        pyplot.show()
+        #pyplot.show()
+        #differenceList is used to get rid of outliers
         differenceList = [fittedValues[i] - y[i] for i in range(len(y))]
         removeIndex = removeOutliers(differenceList)
+        #removeIndex is a list of the index of all points that are considered outliers
         if len(removeIndex) <= 1:
             if len(removeIndex) == 1:
                 del y[removeIndex[0]]
@@ -252,18 +254,25 @@ class optimiser:
                 p = list(numpy.polyfit(numpy.array(x), numpy.array(y), 2))
             alphaMin = -p[1]/(2*p[0])
             if p[0] < 0:
-                return min(vecFuncList, key = lambda i: i[1][0])
+                alpha1Predict = p[0]*alpha1**2 + p[1]*alpha1 + p[2]
+                alpha2Predict = p[0]*alpha2**2 + p[1]*alpha2 + p[2]
+                if alpha2Predict < alpha1Predict:
+                    return [vecFuncList[-1][0], (alpha2Predict, vecFuncList[-1][1][1]), alpha2]
+                else:
+                    return [vecFuncList[0][0], (alpha1Predict, vecFuncList[0][1][1]), alpha1]
             else:
                 if alphaMin < alpha1:
                     print vecFuncList[0]
                     print '======0'
                     print min(vecFuncList, key = lambda i: i[1][0])
-                    return vecFuncList[0]
+                    alpha1Predict = p[0]*alpha1**2 + p[1]*alpha1 + p[2]
+                    return [vecFuncList[0][0], (alpha1Predict, vecFuncList[0][1][1]), alpha1]
                 elif alphaMin > alpha2:
                     print vecFuncList[-1]
                     print '=========1'
                     print min(vecFuncList, key = lambda i: i[1][0])
-                    return vecFuncList[-1]
+                    alpha2Predict = p[0]*alpha2**2 + p[1]*alpha2 + p[2]
+                    return [vecFuncList[-1][0], (alpha2Predict, vecFuncList[-1][1][1]), alpha2]
                 else:
                     self.normParam = [initialVec[i] + alphaMin*searchDirection[i] for i in range(self.paramCount)]
                     returner = [self.normParam, self.getObjective(), alphaMin]
@@ -420,7 +429,7 @@ class import_algo_prog_plot(Tkinter.Frame):
 
         self.parent = parent
         self.signConverter = [1, signConverter[0]]
-        self.axis_labels = ['Number of searched directions', axis_labels[1]]
+        self.axis_labels = ['Number of searched directions', axis_labels[0]]
 
         self.initUi()
 
