@@ -68,7 +68,7 @@ class optimiser:
         """       
         file_return = ""
          
-        file_return += "MOPSO algorithm\n"
+        file_return += "dlsoo_mopso.py algorithm\n"
         file_return += "=================\n\n"
         file_return += "Iterations: {0}\n".format(self.max_iter)
         file_return += "Swarm size: {0}\n\n".format(self.swarm_size)        
@@ -83,7 +83,7 @@ class optimiser:
         return file_return
     
     
-    def evaluate_swarm(self, swarm):
+    def evaluate_swarm(self, swarm, initial_evaluation):
         """
         Function measures the objective functions for an entire swarm.
         
@@ -114,8 +114,10 @@ class optimiser:
             errors.append(all_errors)
             
             completed_percentage += percentage_interval                           #update percentage bar on progress plot
-            print completed_percentage,'%'
-            self.progress_handler(completed_percentage, completed_iteration)
+            print completed_percentage*100,'%'
+            
+            if initial_evaluation == False:            
+                self.progress_handler(completed_percentage, completed_iteration)
         
         while self.pause:                                                         #keep update bar if algorithm paused
                 self.progress_handler(completed_percentage, completed_iteration)
@@ -305,7 +307,7 @@ class optimiser:
             None, but updates all particle best locations in objective space for next iteration.
         """
         
-        objectives, errors = self.evaluate_swarm(swarm)                                    #obtain objective measurements and errors for all particles.
+        objectives, errors = self.evaluate_swarm(swarm, initial_evaluation)                                    #obtain objective measurements and errors for all particles.
         for i in range(len(swarm)):                
             swarm[i].fit_i = objectives[i]                                                 #update current objective fit.
             swarm[i].error = errors[i]                                                     #update current objective error.
@@ -324,7 +326,7 @@ class optimiser:
     def optimise(self):
         """
         This function runs the optimisation algorithm. It initialises the swarm and then takes successive measurements whilst
-        updating the loaction of the swarm. It also updates the pareto-front archive after each iteration.
+        updating the location of the swarm. It also updates the pareto-front archive after each iteration.
         
         Args:
             None
@@ -336,10 +338,10 @@ class optimiser:
         global store_address
         global pareto_front
         global completed_iteration
+        global completed_percentage
         store_address = self.store_location
 
-        if not os.path.exists(self.store_location):                                               #make save directory
-            os.makedirs(self.store_location)
+
         
 #         if self.add_current_to_individuals:
 #             current_ap = self.interactor.get_ap()
@@ -350,15 +352,18 @@ class optimiser:
         for i in range(0, self.swarm_size):                                                       #initialise the swarm 
             swarm.append(Particle(self.param_count, self.min_var, self.max_var))
         
-        completed_iteration = 0
+        
         self.evaluate(swarm, initial_evaluation=True)   
         proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]                         #define the front for sorting 
-        self.find_pareto_front(proposed_pareto)                                                   #find the non-dominating set
+        self.find_pareto_front(proposed_pareto)
+        completed_iteration = 0                                                                   #find the non-dominating set
         front_to_dump = tuple(list(pareto_front))                                                 #dump new front in file
         self.dump_fronts(front_to_dump, 0)
-        
+        self.progress_handler(completed_percentage, completed_iteration)
+         
         for t in range(1,self.max_iter):                                                          #begin iteration 
             leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)                         #calculate leader roulette wheel for the swarm
+            
             for j in range(0, self.swarm_size):                                                   #for every particle:                                               
                 swarm[j].select_leader(leader_roullete_wheel)                                     #select leader
                 swarm[j].update_velocity(self.inertia, self.social_param, self.cognitive_param)   #update velocity   
@@ -373,9 +378,6 @@ class optimiser:
             completed_iteration = t                                                               #track iteration number
             
         print "OPTIMISATION COMPLETE"
-
-
-#----------------------------------------------------------------PARTICLE CLASS--------------------------------------------------------------------#
         
 class Particle:
     
@@ -442,14 +444,13 @@ class Particle:
                 new_velocity[i] = -1 * new_velocity[i]
                 
         self.velocity_i = tuple(new_velocity)                                                          #update particle velocity attribute                             
-        self.position_i = tuple(new_position)                                                          #update particle position attribute   
+        self.position_i = tuple(new_position)                                                          #update particle position attribu   
             
 
     def select_leader(self, roulette_wheel):
         global pareto_front
         if len(pareto_front) < len(pareto_front[0][1]) +1:
             self.leader_i = random.choice(pareto_front)[0]
-            print 'new leader is ',self.leader_i
             return
         
         r = random.random()
@@ -505,10 +506,10 @@ class import_algo_frame(Tkinter.Frame):
         #self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
         #self.c0.grid(row=9, column=1)
         
-        Tkinter.Label(self, text="Recommended:\nSwarm Size: 15\nMax. Iterations: 10\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
         
-        self.i0.insert(0, "15")
-        self.i1.insert(0, "4")
+        self.i0.insert(0, "50")
+        self.i1.insert(0, "5")
         self.i2.insert(0, "0.4")
         self.i3.insert(0, "2.0")
         self.i4.insert(0, "2.0")
@@ -579,109 +580,105 @@ class import_algo_frame(Tkinter.Frame):
 
 
 class import_algo_prog_plot(Tkinter.Frame):
-    
-    def __init__(self, parent):
-        
+
+    def __init__(self, parent, signConverter):
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+        self.signConverter = signConverter
+
         self.initUi()
-    
+
     def initUi(self):
-        
+
         self.fig = Figure(figsize=(5, 5), dpi=100)
         self.a = self.fig.add_subplot(111)
-        
+
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.show()
         self.canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
-        
-    
+
+
+
     def update(self):
         global store_address
         global completed_iteration
-        
         self.a.clear()
-        
         file_names = []
-        for i in range(completed_iteration + 1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
-        
+        for i in range(completed_iteration):
+            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+
+        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"], self.signConverter)
+
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
-        
-    
-
 
 class import_algo_final_plot(Tkinter.Frame):
-    
-    def __init__(self, parent, pick_handler, axis_labels):
+
+    def __init__(self, parent, pick_handler, axis_labels, signConverter):
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+        self.signConverter = signConverter
+
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
         #self.initUi()
-    
+
     def initUi(self):
         global store_address
-        global completed_iteration
-        
-        self.parent.title("MOPSO Results")
-        
+
+        self.parent.title("MOPSO results")
+
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
-        
+
         self.rowconfigure(0, weight=1)
-        
+
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
-        
-        self.plot_frame = final_plot(self, self.axis_labels)
-        
+
+        self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
+
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
-        
+
         Tkinter.Label(self, text="View mode:").grid(row=0, column=1)
-        
+
         self.cbx_view_mode = ttk.Combobox(self, textvariable=self.view_mode, values=('No focus', 'Best focus'))
         self.cbx_view_mode.bind("<<ComboboxSelected>>", lambda x: self.plot_frame.initUi())
         self.cbx_view_mode.grid(row=0, column=2)
-        
+
         self.grid(sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
         self.parent.columnconfigure(0, weight=1)
         self.parent.rowconfigure(0, weight=1)
-    
+
     def on_pick(self, event):
-        
+        global completed_iteration
         # Lookup ap values
         my_artist = event.artist
         x_data = my_artist.get_xdata()
         y_data = my_artist.get_ydata()
         ind = event.ind
-        point = tuple(zip(x_data[ind], y_data[ind]))
-        
+        point = tuple(zip(self.signConverter[0]*x_data[ind], self.signConverter[1]*y_data[ind]))
+
         print "Point selected, point: {0}".format(point)
-        
+
         ''' By this point we have the ars, but not the aps. We get these next. '''
-        
+
         file_names = []
-        #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_iteration+1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        
+        #for i in range(algo_settings_dict['max_gen'])
+        for i in range(completed_iteration):
+            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+
+
         fs = []
-    
+
         for file_name in file_names:
             execfile(file_name)
-            
+
             fs.append(locals()['fronts'][0])
-        
+
         aggregate_front_data = []
         for i in fs:
             for j in i:
@@ -689,53 +686,58 @@ class import_algo_final_plot(Tkinter.Frame):
         aggregate_front_results = [i[1] for i in aggregate_front_data]
         point_number = aggregate_front_results.index(point[0])
         point_a_params = aggregate_front_data[point_number][0]
-        
+
         print "ap: {0}".format(point_a_params)
-        
+
         ''' By this point he have the aps, but not the mps. We don't find these in the algorithm. '''
-        
-        
+
+
         self.pick_handler(point[0], point_a_params)
-        
-        
-        
+
+
+
         #self.pick_handler()
 
 
 
+
+
 class final_plot(Tkinter.Frame):
-    
-    def __init__(self, parent, axis_labels):
-        
+
+    def __init__(self, parent, axis_labels, signConverter):
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
+        self.signConverter = signConverter
         self.axis_labels = axis_labels
-        
+
         self.initUi()
-    
+
     def initUi(self):
-        
+        global store_address
+        global completed_iteration
+
         for widget in self.winfo_children():
             widget.destroy()
-        
+
         fig = Figure(figsize=(5, 5), dpi=100)
         a = fig.add_subplot(111)
         fig.subplots_adjust(left=0.15)
         #a.plot(range(10), [i**2 for i in range(10)])
-        
+
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_iteration+1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
-        
+        for i in range(completed_iteration):
+            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+
+        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
+
         canvas = FigureCanvasTkAgg(fig, self)
         canvas.mpl_connect('pick_event', self.parent.on_pick)
         canvas.show()
         canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
+
         toolbar = NavigationToolbar2TkAgg(canvas, self)
         toolbar.update()
         canvas._tkcanvas.pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=True)
