@@ -1,11 +1,12 @@
 '''
-Version 2*
-2016-07-27 16:00
+DLS-OnlineOptimiser: A flexible online optimisation package for use on the Diamond machine. 
+Version 3
+@authors: David Obee, James Rogers and Greg Henderson.
 '''
 
 
 from __future__ import division
-
+print 'Welcome to DLS-OnlineOptimiser'
 print 'Loading...'
 
 import pkg_resources
@@ -124,7 +125,7 @@ class mr_representation:
 mr_to_ar_sign = []
 
 optimiserNames = ('MOPSO', 'MOSA', 'NSGA2', 'RCDS')
-optimiserFiles = {'MOPSO': 'dlsoo_mopso.py', 'MOSA': 'dlsoo_MOSA.py', 'NSGA2': 'dlsoo-nsga2.py', 'RCDS': 'dlsoo_RCDS.py'}
+optimiserFiles = {'MOPSO': 'dlsoo_mopso.py', 'MOSA': 'dlsoo_mosa.py', 'NSGA2': 'dlsoo-nsga2.py', 'RCDS': 'dlsoo_RCDS.py'}
 interactor = None
 optimiser = None
 useMachine = False
@@ -904,6 +905,7 @@ class point_details(Tkinter.Frame):
 
 
     def generateUi(self, ars, aps):
+        global signConverter
 
         ''' First, unpickle the mp_to_ap mapping file '''
 
@@ -951,7 +953,7 @@ class point_details(Tkinter.Frame):
             tree_ap.insert('', 'end', text=parameters[i].ap_label, values=(ap))
 
         for i, ar in enumerate(ars):
-            tree_ar.insert('', 'end', text=results[i].ar_label, values=(ar))
+            tree_ar.insert('', 'end', text=results[i].ar_label, values=(signConverter[i]*ar))
 
         mp_labels = []
         for mpgr in parameters:
@@ -1230,3 +1232,5 @@ def ticker():
 root.mainloop()
 print 'returned from mainloop'
 cothread.WaitForQuit()
+
+
