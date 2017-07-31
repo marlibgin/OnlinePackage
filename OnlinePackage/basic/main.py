@@ -124,6 +124,8 @@ class mr_representation:
 #mr_to_ar_mapping = []
 mr_to_ar_sign = []
 
+keepUpdating = True
+
 optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
                   'Multi-Objective Simulated Annealing (MOSA)',
                   'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)',
@@ -132,7 +134,7 @@ optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
 optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
                   'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
                   'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
-                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_rcds.py'}
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_RCDS.py'}
 
 interactor = None
 optimiser = None
@@ -817,7 +819,8 @@ class show_progress(Tkinter.Frame):
 
         progress.set(normalised_percentage * 100)
         progress_frame.update()
-
+        print 'testing'
+        self.strip_plot.update()
 
         self.progress_plot.update()
 
@@ -871,8 +874,9 @@ class strip_plot(Tkinter.Frame):
     def initUi(self):
         global interactor
         self.interactor = interactor
-        data_sets = []
-        time_sets = []
+        self.data_sets = []
+        self.time_sets = []
+        self.initTime = time.time()
 
         self.fig = Figure(figsize=(5, 1), dpi=100)
         self.a = self.fig.add_subplot(111)
@@ -888,7 +892,12 @@ class strip_plot(Tkinter.Frame):
         for i in self.interactor.measurement_vars:
             mrs.append(self.interactor.get_pv(i.pv))
 
-        new_data = mps + mrs
+        new_data = mrs + mps
+        self.data_sets.append(new_data)
+        self.time_sets.append(time.time() - self.initTime)
+
+        plot.plot_strip_tool(self.a, self.data_sets, self.time_sets)
+        self.canvas.show()
 
 
 
@@ -1147,10 +1156,12 @@ def optimiserThreadMethod():
     global optimiser
     global results
     global store_address
+    global keepUpdating
     start_time = time.time()
 
     optimiser.optimise()
     print results
+    keepUpdating = False
 
     end_time = time.time()
 
@@ -1181,7 +1192,6 @@ def optimiserThreadMethod():
 
 
 
-
 root = Tkinter.Tk()
 root.title("DLS Online Optimiser")
 rootInit = Tkinter.Toplevel(root)
@@ -1192,8 +1202,6 @@ def yielder():
     cothread.Yield()
     root.after(100, yielder)
 root.after(100, yielder)
-
-
 
 progress = Tkinter.DoubleVar()
 progress.set(0.00)

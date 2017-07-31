@@ -11,9 +11,9 @@ import matplotlib.patches as pat
 
 
 def virtual_pareto_points(x_pareto, y_pareto, signConverter):
-    
-    if signConverter == [1,1] or signConverter == [1,-1]:   
-    
+
+    if signConverter == [1,1] or signConverter == [1,-1]:
+
         coords = zip(x_pareto,y_pareto)
         coords.sort(key=operator.itemgetter(0))
 
@@ -27,11 +27,11 @@ def virtual_pareto_points(x_pareto, y_pareto, signConverter):
         new_coords.append(coords[-1])
         new_x = [x[0] for x in new_coords]
         new_y = [y[1] for y in new_coords]
-        
+
         return new_x, new_y
-        
-    if signConverter == [-1,-1] or signConverter == [-1,1]:   
-    
+
+    if signConverter == [-1,-1] or signConverter == [-1,1]:
+
         coords = zip(x_pareto,y_pareto)
         coords.sort(key=operator.itemgetter(0))
 
@@ -45,9 +45,9 @@ def virtual_pareto_points(x_pareto, y_pareto, signConverter):
         new_coords.append(coords[-1])
         new_x = [x[0] for x in new_coords]
         new_y = [y[1] for y in new_coords]
-        
+
         return new_x, new_y
-    
+
 
 
 
@@ -83,11 +83,11 @@ def plot_pareto_fronts(file_names, ax, axis_labels, signConverter):
         py_vals = [y for (x, y) in sorted(zip(x_vals, y_vals))]
 
         ax.plot(px_vals, py_vals, color=colors[nf], marker='D', linestyle='None',picker=5)
-        
+
         new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)
-        
+
         ax.plot(new_x, new_y, color=colors[nf], linestyle='--')
-        
+
         x_vals = []
         y_vals = []
 
@@ -146,13 +146,13 @@ def plot_pareto_fronts_interactive(file_names, ax, axis_labels, interactor, call
 
             if nf == len(fs) - 1:
                 ax.plot(px_vals, py_vals, color=colors[nf], marker='D', picker=5, linestyle='None')
-                
-                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)        
+
+                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)
                 ax.plot(new_x, new_y, color=colors[nf], linewidth=2)
             else:
                 ax.plot(px_vals, py_vals, color=colors[nf], marker='.', linestyle='None')
-                
-                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)        
+
+                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)
                 ax.plot(new_x, new_y, color=colors[nf], linestyle='--')
 
             x_vals = []
@@ -186,12 +186,12 @@ def plot_pareto_fronts_interactive(file_names, ax, axis_labels, interactor, call
             #if nf == len(fs) - 1:
             if nf == len(fs) - 1:
                 ax.plot(px_vals, py_vals, color='y', marker='D', linestyle='None', picker=5)
-                
-                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)        
+
+                new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)
                 ax.plot(new_x, new_y, color='y', linewidth=2)
             else:
                 ax.plot(px_vals, py_vals, color="{0}".format(greys[nf]), marker='.', linestyle='None')
-                
+
                 new_x, new_y = virtual_pareto_points(px_vals,py_vals,signConverter)
                 ax.plot(new_x, new_y, color="{0}".format(greys[nf]), linestyle='--')
 
@@ -214,24 +214,11 @@ def plot_pareto_fronts_interactive(file_names, ax, axis_labels, interactor, call
 
 
 
-def plot_strip_tool(ax, data_sets, data_times, current_time, time_interval):
-
-    time_shifts = []
-
-    for i in data_times:
-
-        indv_set_times = []
-
-        for j in i:
-            indv_set_times.append(j - current_time)
-
-        time_shifts.append(indv_set_times)
-
+def plot_strip_tool(ax, data_sets, data_times):
     #print data_times
-    for data_set, shift_set in zip(data_sets, time_shifts):
+    data_set = [i[0] for i in data_sets]
 
-        ax.plot(shift_set, data_set)
+    ax.plot(data_times, data_set)
 
 
-    #ax.set_autoscaley_on(False)
-    ax.set_xlim(time_interval)
+    #ax.set_autoscaley_on(False)    
