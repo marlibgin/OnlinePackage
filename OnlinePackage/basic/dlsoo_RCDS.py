@@ -78,7 +78,6 @@ class optimiser:
         self.objCallStop = settings_dict['objCallStop']
         self.tolerance = settings_dict['tolerance']
         self.nOIterations = settings_dict['nOIterations']
-        self.initParams = settings_dict['initParams']
         self.numTestPoints = settings_dict['numTestPoints']
         self.down = a_min_var
         self.up = a_max_var
@@ -105,7 +104,9 @@ class optimiser:
         self.pause = False
         self.cancel = False
         #if now perameters specified use random
-        if self.initParams == []:
+        if settings_dict['add_current_to_individuals']:
+            self.initParams = interactor.get_ap()
+        else:
             self.initParams = [random.uniform(self.down[i], self.up[i]) for i in range(self.paramCount)]
 
     def getParams(self):
@@ -325,7 +326,7 @@ class optimiser:
         #x0 and initFunc will keep track of the inital parameters and objective at the start of each iteration.
         #now begin the iterations
         for i in range(self.nOIterations):
-            #self.initStep = self.initStep/1.1
+            self.initStep = self.initStep/1.2
             dirToDelete = 0
             del1 = 0
             #del1 keeps track of the largest change so far in the iteration.
@@ -350,9 +351,14 @@ class optimiser:
             print self.searchDirections
             print 'searchDirections'
             if not (norm == 0):
-                del self.searchDirections[dirToDelete]
                 newDirection = [k/norm for k in newDirection]
-                self.searchDirections.append(newDirection)
+                dotProduct = []
+                for k in self.searchDirections:
+                    dot = abs(sum([newDirection[l]*k[l] for l in range(self.paramCount)]))
+                    dotProduct.append(dot)
+                if max(dotProduct) <= 0.9:
+                    del self.searchDirections[dirToDelete]
+                    self.searchDirections.append(newDirection)
             if self.numFuncEval >= self.objCallStop:
                 print 'Exceeded max number of measurements'
             if 2*abs(initFunc[0] - funcMin[0]) < self.tolerance*(abs(initFunc[0]) + abs(funcMin[0])):
@@ -414,7 +420,6 @@ class import_algo_frame(Tkinter.Frame):
         setup['initStep'] = float(self.i5.get())
         setup['numTestPoints'] = int(self.i6.get())
         setup['searchDirections'] = []
-        setup['initParams'] = []
         if self.add_current_to_individuals.get() == 0:
             setup['add_current_to_individuals'] = False
         elif self.add_current_to_individuals.get() == 1:

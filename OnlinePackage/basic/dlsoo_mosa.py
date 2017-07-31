@@ -15,6 +15,7 @@ import scipy.stats as stats
 import Tkinter
 import ttk
 import tkMessageBox
+import cothread
 
 import dls_optimiser_plot as plot
 import matplotlib
@@ -70,7 +71,6 @@ class optimiser:
     def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, individuals=None, progress_handler=None):
         self.interactor = interactor
         self.param = []
-        self.initParam = []
         self.up = a_max_var
         self.down = a_min_var
         self.nOIterations = settings_dict['noIterations']
@@ -81,7 +81,6 @@ class optimiser:
         self.paramCount = len(interactor.param_var_groups)
         self.objCount = len(interactor.measurement_vars)
         self.anealPlot = settings_dict['anealPlot']
-        self.individuals = individuals
         self.progress_handler = progress_handler
         self.inTemp = []
         self.outTemp = []
@@ -97,6 +96,10 @@ class optimiser:
         self.store_location = store_location
         self.pause = False
         self.cancel = False
+        if settings_dict['add_current_to_individuals'] == True:
+            self.initParams = interactor.get_ap()
+        else:
+            self.initParams = []
         #pause is used to allow the main GUI to pause the algorithm.
 
     def getObjectives(self):
@@ -160,12 +163,9 @@ class optimiser:
             self.domFrontErrors.append(newObj[1])
             self.domFrontParam.append(self.param)
             #now to delete the elements use x to keep track of how many are deleted
-            x = 0
-            for i in dominatedElements:
-                del self.domFrontParam[i-x]
-                del self.domFrontObjectives[i-x]
-                del self.domFrontErrors[i-x]
-                x += 1
+            self.domFrontObjectives = [self.domFrontObjectives[i] for i in range(len(self.domFrontObjectives)) if not (i in dominatedElements)]
+            self.domFrontParam = [self.domFrontParam[i] for i in range(len(self.domFrontParam)) if not (i in dominatedElements)]
+            self.domFrontErrors = [self.domFrontErrors[i] for i in range(len(self.domFrontErrors)) if not (i in dominatedElements)]
 
     def dumpFront(self):
         #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
@@ -211,7 +211,7 @@ class optimiser:
         #this variable is used to keep track of the number of times we have evaluted the objectives.
         collectivePointCount = 0
         #this varaible is used to keep track of progress
-        if self.initParam == []:
+        if self.initParams == []:
             self.setUnifRanPoints()
         currentParams = self.param
         currentObj = self.getObjectives()
@@ -266,15 +266,17 @@ class optimiser:
                 #check to see if enough ponits have been checked and if so leave this loop
                 if pointCount == self.nOIterations:
                     keepIterating = False
-                elif x == (self.nOIterations*10):
+                if x == (self.nOIterations*10):
                     print 'failed to complete in 10*(number of iterations) check code'
                     print pointCount
                     keepIterating = False
-                elif objCall >= self.objCallStop:
-                    keepIterating == False
+                if objCall >= self.objCallStop:
+                    keepIterating = False
+                    performAneal = False
                     print 'Exceeded the maximum number of measurements'
                 elif self.cancel:
                     keepIterating = False
+                    self.performAneal = False
                 while self.pause:
                     #if it is in pause mode this will keep it paused
                     self.progress_handler(float(collectivePointCount)/float(maxPoints), collectivePointCount)
@@ -293,10 +295,6 @@ class optimiser:
             currentObj = (self.domFrontObjectives[newPoint], self.domFrontErrors[newPoint])
             currentParams = self.domFrontParam[newPoint]
             if aneal >= self.nOAneals:
-                performAneal = False
-            elif objCall >= self.objCallStop:
-                performAneal = False
-            elif self.cancel:
                 performAneal = False
             if (aneal % self.anealPlot) == 0:
                 #update the front files and let the GUI know of the progress
