@@ -132,7 +132,7 @@ optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
 optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
                   'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
                   'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
-                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_RCDS.py'}
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_rcds.py'}
 
 interactor = None
 optimiser = None
@@ -1104,14 +1104,15 @@ def main_window_lock_unlock(new_state):
 def save_details_files(start_time, end_time):
     global my_solver
     global the_interactor
+    global store_address
 
-    f = file("{0}/algo_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/algo_details.txt".format(store_address), "w")
     f.write(optimiser.save_details_file())
 
-    f = file("{0}/inter_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/inter_details.txt".format(store_address), "w")
     f.write(interactor.save_details_file())
 
-    f = file("{0}/controller_details.txt".format(the_main_window.i_save_address.get()), "w")
+    f = file("{0}/controller_details.txt".format(store_address), "w")
     f.write("Controller\n")
     f.write("==========\n\n")
 

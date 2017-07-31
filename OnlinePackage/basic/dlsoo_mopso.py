@@ -357,7 +357,8 @@ class optimiser:
         proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]                         #define the front for sorting 
         self.find_pareto_front(proposed_pareto)
         completed_iteration = 0                                                                   #find the non-dominating set
-        front_to_dump = tuple(list(pareto_front))                                                 #dump new front in file
+        front_to_dump = tuple(list(pareto_front))
+        print front_to_dump                                                 #dump new front in file
         self.dump_fronts(front_to_dump, 0)
         self.progress_handler(completed_percentage, completed_iteration)
          
@@ -581,12 +582,13 @@ class import_algo_frame(Tkinter.Frame):
 
 class import_algo_prog_plot(Tkinter.Frame):
 
-    def __init__(self, parent, signConverter):
+    def __init__(self, parent, axis_labels, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
         self.signConverter = signConverter
+        self.axis_labels = axis_labels
 
         self.initUi()
 
@@ -606,10 +608,10 @@ class import_algo_prog_plot(Tkinter.Frame):
         global completed_iteration
         self.a.clear()
         file_names = []
-        for i in range(completed_iteration):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+        for i in range(completed_iteration+1):
+            file_names.append("{0}/fronts.{1}".format(store_address, i))
 
-        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"], self.signConverter)
+        plot.plot_pareto_fronts(file_names, self.a, self.axis_labels, self.signConverter)
 
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
@@ -629,7 +631,7 @@ class import_algo_final_plot(Tkinter.Frame):
     def initUi(self):
         global store_address
 
-        self.parent.title("MOPSO results")
+        self.parent.title("MOSA results")
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
