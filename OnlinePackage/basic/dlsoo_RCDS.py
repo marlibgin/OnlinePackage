@@ -171,7 +171,7 @@ class optimiser:
             for i in range(len(vecFuncStore)):
                 vecFuncStore[i][2] = vecFuncStore[i][2] - alphaMin
             return (vecMin, funcMin, alpha1, alpha2, vecFuncStore)
-
+        print self.initStep
         step = -self.initStep
 
         self.normParam = [initialVec[i] + step*searchDirection[i] for i in range(self.paramCount)]
@@ -325,7 +325,7 @@ class optimiser:
         #x0 and initFunc will keep track of the inital parameters and objective at the start of each iteration.
         #now begin the iterations
         for i in range(self.nOIterations):
-            self.initStep = self.initStep/1.2
+            #self.initStep = self.initStep/1.1
             dirToDelete = 0
             del1 = 0
             #del1 keeps track of the largest change so far in the iteration.
@@ -346,7 +346,9 @@ class optimiser:
                 self.dumpProgress()
                 self.progress_handler(float(self.numDirSearched)/float(maxDirSearches), self.numDirSearched)
             newDirection = [vecMin[k] - x0[k] for k in range(self.paramCount)]
-            norm = sum([k**2 for k in newDirection])
+            norm = sum([k**2 for k in newDirection])**0.5
+            print self.searchDirections
+            print 'searchDirections'
             if not (norm == 0):
                 del self.searchDirections[dirToDelete]
                 newDirection = [k/norm for k in newDirection]
