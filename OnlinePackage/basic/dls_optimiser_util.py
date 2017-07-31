@@ -76,38 +76,51 @@ def set_params(param_vars, settings, set_command):
 
 
 def measure_results(measurement_vars, get_command):
-    #print "Calling measure_results"
-    # Define calculation variables
-    average = [0] * len(measurement_vars)
-    counts = [0] * len(measurement_vars)
-    dev = [0] * len(measurement_vars)
     
-    run = True
-    start_time = time.time()
+    average = []
+    counts = []
+    dev = []
+    err = []
     
-    while run:
-        # Check whether to make any measurements
-        for i in range(len(measurement_vars)):
-            # If the time since start is > the measurement delay * number of times its been counted, then
-            if (time.time() - start_time) > (measurement_vars[i].delay * counts[i]):
-                value = get_command(measurement_vars[i].pv)
-                average[i] += value
-                counts[i] += 1
-                dev[i] += value ** 2
+    for i in range(len(measurement_vars)):                               #for each objective
         
-        # Check if finished
-        run = False
-        for i in range(len(measurement_vars)):
-            # If the number counted is less than that required, then carry on, else you can stop
-            if counts[i] < measurement_vars[i].min_counts:
-                run = True
+        result = int(measurement_vars[i].min_counts) * [0.]
+        std = int(measurement_vars[i].min_counts) * [0.]
+        
+        for j in range(int(measurement_vars[i].min_counts)):
+            
+            value = get_command(measurement_vars[i].pv)
+            result[j] = value
+            std[j] = value ** 2
+            j += 1
+            time.sleep(measurement_vars[i].delay)
+            
+        mean = sum(result) / measurement_vars[i].min_counts
+        standard_deviation = (sum(std) / measurement_vars[i].min_counts) - mean ** 2
+        standard_deviation = math.sqrt(standard_deviation)
+
+        #detect and remove any outliers
+        anomaly = False
+        for j in result:
+            if (abs(mean - j)) > 2 * standard_deviation:
+                anomaly = True
+                index = result.index(j)
+                result.remove(j)
+                del std[index]
+
+        #recalculate mean if outliers are found
+        if anomaly == True:
+            mean = sum(result) / len(result)
+            standard_deviation = (sum(std) / len(result)) - mean ** 2
+            standard_deviation = math.sqrt(standard_deviation)
+            
+        stat_err = standard_deviation / math.sqrt(len(result))
+        
+        average.append(mean)
+        counts.append(len(result))
+        dev.append(standard_deviation)
+        err.append(stat_err)
     
-    average = [average[i]/counts[i] for i in range(len(average))]
-    dev = [(dev[i]/counts[i]) - average[i]**2 for i in range(len(average))]
-    err = [(dev[i])/(math.sqrt(counts[i])) for i in range(len(average))]
-    
-    # Return results back to the optimiser
-    #return average We would previously just return the number. Now we will return a measurement object
     results = []
     for i in range(len(average)):
         results.append(measurement(mean=average[i], counts=counts[i], dev=dev[i], err=err[i]))
