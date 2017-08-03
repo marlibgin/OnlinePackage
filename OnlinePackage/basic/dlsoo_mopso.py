@@ -6,6 +6,7 @@ Created on 7 Jul 2017
 
 #-----------------------------------------------------------------IMPORT LIBRARIES-----------------------------------------------------------------#
 
+
 import random
 import os
 
@@ -24,7 +25,7 @@ from matplotlib.figure import Figure
 #------------------------------------------------------GLOBAL VARIABLES AND USEFUL FUNCTIONS-------------------------------------------------------#
 
 store_address = None                            #directory in which output data will be stored
-completed_iteration = None                      #number of completed iterations
+completed_iteration = 0                      #number of completed iterations
 completed_percentage = 0.0
 pareto_front = ()                               #current pareto-front with the format (((param1,param2,...),(obj1,obj2,...),(err1,err2,...)),...)
 
@@ -45,8 +46,8 @@ class optimiser:
         self.store_location = store_location                                 #location for output files
         self.swarm_size = settings_dict['swarm_size']                        #number of particles in swarm
         self.max_iter = settings_dict['max_iter']                            #number of iterations of algorithm
-        self.param_count = settings_dict['param_count']                      #number of parameters being varied
-        self.result_count = settings_dict['result_count']                    #number of objectives being measured
+        self.param_count = len(interactor.param_var_groups)                  #number of parameters being varied
+        self.result_count = len(interactor.measurement_vars)                 #number of objectives being measured
         self.min_var = a_min_var                                             #minimum values of parameters
         self.max_var = a_max_var                                             #minimum values of parameters
         self.inertia = settings_dict['inertia']                              #inertia of particles in swarm
@@ -83,7 +84,7 @@ class optimiser:
         return file_return
     
     
-    def evaluate_swarm(self, swarm, initial_evaluation):
+    def evaluate_swarm(self, swarm):
         """
         Function measures the objective functions for an entire swarm.
         
@@ -115,9 +116,8 @@ class optimiser:
             
             completed_percentage += percentage_interval                           #update percentage bar on progress plot
             print completed_percentage*100,'%'
-            
-            if initial_evaluation == False:            
-                self.progress_handler(completed_percentage, completed_iteration)
+                       
+            self.progress_handler(completed_percentage, completed_iteration)
         
         while self.pause:                                                         #keep update bar if algorithm paused
                 self.progress_handler(completed_percentage, completed_iteration)
@@ -135,7 +135,7 @@ class optimiser:
         Returns:
             None
         """
-        f = file("{0}/fronts.{1}".format(self.store_location, iteration), "w")             #open file
+        f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, iteration), "w")             #open file
         f.write("fronts = ((\n")
         for i, data in enumerate(fronts):
             f.write("    ({0}, {1}, {2}),\n".format(data[0], tuple(data[1]), data[2]))     #insert each solution in front
@@ -307,7 +307,7 @@ class optimiser:
             None, but updates all particle best locations in objective space for next iteration.
         """
         
-        objectives, errors = self.evaluate_swarm(swarm, initial_evaluation)                                    #obtain objective measurements and errors for all particles.
+        objectives, errors = self.evaluate_swarm(swarm)                                    #obtain objective measurements and errors for all particles.
         for i in range(len(swarm)):                
             swarm[i].fit_i = objectives[i]                                                 #update current objective fit.
             swarm[i].error = errors[i]                                                     #update current objective error.
@@ -355,11 +355,10 @@ class optimiser:
         
         self.evaluate(swarm, initial_evaluation=True)   
         proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]                         #define the front for sorting 
-        self.find_pareto_front(proposed_pareto)
-        completed_iteration = 0                                                                   #find the non-dominating set
-        front_to_dump = tuple(list(pareto_front))
-        print front_to_dump                                                 #dump new front in file
-        self.dump_fronts(front_to_dump, 0)
+        self.find_pareto_front(proposed_pareto)                                                   #find the non-dominating set
+        front_to_dump = tuple(list(pareto_front))                                                 
+        self.dump_fronts(front_to_dump, 0)                                                        #dump new front in file
+        completed_iteration = 1
         self.progress_handler(completed_percentage, completed_iteration)
          
         for t in range(1,self.max_iter):                                                          #begin iteration 
@@ -376,7 +375,7 @@ class optimiser:
             front_to_dump = list(pareto_front)                                                    #dump new front in file
             self.dump_fronts(front_to_dump, t)
             
-            completed_iteration = t                                                               #track iteration number
+            completed_iteration += 1                                                               #track iteration number
             
         print "OPTIMISATION COMPLETE"
         
@@ -496,26 +495,18 @@ class import_algo_frame(Tkinter.Frame):
         self.i4 = Tkinter.Entry(self)
         self.i4.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Parameter count:").grid(row=5, column=0, sticky=Tkinter.E)
-        self.i5 = Tkinter.Entry(self)
-        self.i5.grid(row=5, column=1, sticky=Tkinter.E+Tkinter.W)
-        
-        Tkinter.Label(self, text="Result count:").grid(row=6, column=0, sticky=Tkinter.E)
-        self.i6 = Tkinter.Entry(self)
-        self.i6.grid(row=6, column=1, sticky=Tkinter.E+Tkinter.W)
-        
         #self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
         #self.c0.grid(row=9, column=1)
         
-        Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=5, column=0, columnspan=2, sticky=Tkinter.W)
         
         self.i0.insert(0, "50")
         self.i1.insert(0, "5")
         self.i2.insert(0, "0.4")
         self.i3.insert(0, "2.0")
         self.i4.insert(0, "2.0")
-        self.i5.insert(0, "3")
-        self.i6.insert(0, "2")
+#         self.i5.insert(0, "3")
+#         self.i6.insert(0, "2")
         
     
     def get_dict(self):
@@ -553,18 +544,6 @@ class import_algo_frame(Tkinter.Frame):
             tkMessageBox.showerror("MOPSO settings error", "The value for \"Cognitive Parameter\": \"{0}\", could not be converted to a float".format(self.i4.get()))
             good_data = False
         
-        try:
-            setup['param_count'] = int(self.i5.get())
-        except:
-            tkMessageBox.showerror("MOPSO settings error", "The value for \"Parameter count\": \"{0}\", could not be converted to an int".format(self.i7.get()))
-            good_data = False
-        
-        try:
-            setup['result_count'] = int(self.i6.get())
-        except:
-            tkMessageBox.showerror("MOPSO settings error", "The value for \"Result count\": \"{0}\", could not be converted to an int".format(self.i8.get()))
-            good_data = False
-        
 #         if self.add_current_to_individuals.get() == 0:
 #             setup['add_current_to_individuals'] = False
 #         elif self.add_current_to_individuals.get() == 1:
@@ -575,10 +554,6 @@ class import_algo_frame(Tkinter.Frame):
         else:
             return "error"
         
-        
-    
-
-
 
 class import_algo_prog_plot(Tkinter.Frame):
 
@@ -608,8 +583,8 @@ class import_algo_prog_plot(Tkinter.Frame):
         global completed_iteration
         self.a.clear()
         file_names = []
-        for i in range(completed_iteration+1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
+        for i in range(completed_iteration):
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
 
         plot.plot_pareto_fronts(file_names, self.a, self.axis_labels, self.signConverter)
 
@@ -618,7 +593,9 @@ class import_algo_prog_plot(Tkinter.Frame):
 
 class import_algo_final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, pick_handler, axis_labels, signConverter):
+    def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address = None):
+        
+        global store_address
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
@@ -626,12 +603,16 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
+        
+        if post_analysis_store_address is not None:
+            store_address = post_analysis_store_address
+        
         #self.initUi()
 
     def initUi(self):
         global store_address
 
-        self.parent.title("MOSA results")
+        self.parent.title("MOPSO results")
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
@@ -640,7 +621,7 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
-
+        
         self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
 
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
@@ -656,7 +637,9 @@ class import_algo_final_plot(Tkinter.Frame):
         self.parent.rowconfigure(0, weight=1)
 
     def on_pick(self, event):
-        global completed_iteration
+        
+        global store_address
+        completed_iteration = len(os.listdir('{0}/FRONTS'.format(store_address)))
         # Lookup ap values
         my_artist = event.artist
         x_data = my_artist.get_xdata()
@@ -671,7 +654,7 @@ class import_algo_final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen'])
         for i in range(completed_iteration):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
 
 
         fs = []
@@ -718,7 +701,7 @@ class final_plot(Tkinter.Frame):
 
     def initUi(self):
         global store_address
-        global completed_iteration
+        completed_iteration = len(os.listdir('{0}/FRONTS'.format(store_address)))
 
         for widget in self.winfo_children():
             widget.destroy()
@@ -731,7 +714,9 @@ class final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
         for i in range(completed_iteration):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
+            
+        print 'file names', file_names
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
 

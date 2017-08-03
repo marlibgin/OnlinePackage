@@ -221,4 +221,4 @@ def plot_strip_tool(ax, data_sets, data_times):
     ax.plot(data_times, data_set)
 
 
-    #ax.set_autoscaley_on(False)    
+#ax.set_autoscaley_on(False)

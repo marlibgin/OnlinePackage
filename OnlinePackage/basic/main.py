@@ -929,14 +929,6 @@ class point_details(Tkinter.Frame):
 
 
     def generateUi(self, ars, aps):
-        print 'parameters', parameters
-        print 'results', results
-        print 'ars', ars
-        print 'aps', aps
-        
-        print 'parameter ap_labels:', [i.ap_label for i in parameters]
-        print 'results ar_labels:', [i.ar_label for i in results]
-        print 'mp_representations:', [i.mp_representations for i in parameters]
         
         global signConverter
 
@@ -949,9 +941,7 @@ class point_details(Tkinter.Frame):
         ''' Now get the mp values '''
 
         mps = mp_to_ap_mapping[aps]
-        print 'mps', mps
         self.mps = mps
-        print mp_to_ap_mapping[aps]
 
         ''' Now make UI '''
 
@@ -1069,6 +1059,8 @@ class algorithm_settings(Tkinter.Frame):
                     interactor = modified_interactor2(mp_addresses, mr_addresses, set_relative=relative_settings)
                 else:
                     interactor = modified_interactor1(mp_addresses, mr_addresses, set_relative=relative_settings)
+                
+                save_object(interactor, '{0}/interactor'.format(store_address))
 
                 #ap_min_var, ap_max_var = interactor.find_a_bounds(mp_min_var, mp_max_var)
                 #print ap_min_var
@@ -1173,6 +1165,10 @@ def optimiserThreadMethod():
     global results
     global store_address
     global keepUpdating
+    
+    if not os.path.exists('{0}/FRONTS'.format(store_address)):
+        os.makedirs('{0}/FRONTS'.format(store_address))
+        
     start_time = time.time()
 
     optimiser.optimise()
@@ -1211,7 +1207,6 @@ def optimiserThreadMethod():
     progress_window.withdraw()
 
     ar_labels = [mrr.ar_label for mrr in results]
-    print 'ar_labels', ar_labels
     final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels, signConverter)
     final_plot_frame.initUi()
     final_plot_window.deiconify()

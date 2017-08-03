@@ -41,9 +41,44 @@ store_address = None
 algorithm_name = ""
 algo_frame = None
 optimiser_wrapper = None
+interactor = None
 results = []
 parameters = []
 
+
+class modified_interactor1(util.sim_machine_interactor_bulk_base):
+    def mr_to_ar(self, mrs):
+
+        ars = []
+
+        #for mr, mapping in zip(mrs, mr_to_ar_mapping):
+        #    ars.append(mapping(mr))
+        mr_to_ar_sign = [mrr.mr_to_ar_sign for mrr in results]
+        for mr, sign in zip(mrs, mr_to_ar_sign):
+            if sign == '+':
+                ars.append(mr)
+            elif sign == '-':
+                ars.append(-mr)
+
+        return ars
+
+class modified_interactor2(util.dls_machine_interactor_bulk_base):
+    def mr_to_ar(self, mrs):
+
+        ars = []
+
+        #for mr, mapping in zip(mrs, mr_to_ar_mapping):
+        #    ars.append(mapping(mr))
+        mr_to_ar_sign = [mrr.mr_to_ar_sign for mrr in results]
+        for mr, sign in zip(mrs, mr_to_ar_sign):
+            if sign == '+':
+                ars.append(mr)
+            elif sign == '-':
+                ars.append(-mr)
+
+        return ars
+    
+    
 class mp_group_representation:
 
     def __init__(self):
@@ -147,7 +182,6 @@ class main_window(Tkinter.Frame):
         return good_file
     
     def load_algo_frame(self, file_address):
-        #execfile(file_address, globals())
         global optimiser_wrapper
         optimiser_wrapper = imp.load_source(os.path.splitext(os.path.split(file_address)[1])[0], file_address)
         
@@ -160,6 +194,7 @@ class main_window(Tkinter.Frame):
         global optimiser_wrapper
         global parameters
         global results
+        global interactor
             
         for filename in os.listdir('{0}/PARAMETERS'.format(store_address)):
             parameter = pickle.load(open('{0}/PARAMETERS/{1}'.format(store_address, filename), 'r'))
@@ -173,21 +208,15 @@ class main_window(Tkinter.Frame):
         signConverter_data = signConverter_read.read()
         signConverter = ast.literal_eval(signConverter_data)
         
+        interactor = pickle.load(open('{0}/interactor'.format(store_address, filename), 'r'))
+        
         ar_labels = [mrr.ar_label for mrr in results]
         
-        print 'param', parameters
-        print 'results', results
-        print 'signconverter', signConverter
-        print 'ar labels', ar_labels
-        
         self.load_algo_frame('{0}/{1}'.format(os.getcwd(), algorithm_name))
-        print 'loaded frame'
-        final_plot_frame = optimiser_wrapper.import_algo_final_plot(self.parent, point_frame.generateUi, ar_labels, signConverter)
-        print 'loaded final plot frame'
+        final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels, signConverter, post_analysis_store_address = store_address)
         final_plot_frame.initUi()
-        print 'loaded Ui'
         final_plot_window.deiconify()
-        print 'deiconified'
+        
         
         #self.parent.withdraw()
 
@@ -273,10 +302,10 @@ class point_details(Tkinter.Frame):
         
         self.parent.deiconify()
     
-#     def set_state(self):
-#         
-#         interactor.set_mp(self.mps)
-#     
+    def set_state(self):
+        global interactor
+        interactor.set_mp(self.mps)
+     
     def x_button(self):
         print "Sup"
         self.parent.withdraw()
@@ -295,7 +324,6 @@ point_frame = point_details(point_window)
 point_window.withdraw()
 
 final_plot_window = Tkinter.Toplevel(root)
-#final_plot_frame = display_final_plot(final_plot_window)
 final_plot_window.withdraw()
 
 root.mainloop()
