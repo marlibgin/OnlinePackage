@@ -39,6 +39,11 @@ import dls_optimiser_util as util
 #import dls_optimiser_plot as plot
 import dls_optimiser_plot as plot
 
+def save_object(obj, filename):
+    with open(filename, 'wb') as output:
+        pickle.dump(obj, output)
+
+
 ''' Global variables and algorithm setup space '''
 #class my_interactor(util.dls_machine_interactor_base):
 #class my_interactor(util.kur_simulation_interactor_base):
@@ -133,8 +138,8 @@ optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
 
 optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
                   'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
-                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
-                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_RCDS.py'}
+                  'Multi-Objective (NSGA-II)': 'dlsoo-nsga2.py',
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_rcds.py'}
 
 interactor = None
 optimiser = None
@@ -819,7 +824,7 @@ class show_progress(Tkinter.Frame):
 
         progress.set(normalised_percentage * 100)
         progress_frame.update()
-        print 'testing'
+        #print 'testing'
         self.strip_plot.update()
 
         self.progress_plot.update()
@@ -924,6 +929,15 @@ class point_details(Tkinter.Frame):
 
 
     def generateUi(self, ars, aps):
+        print 'parameters', parameters
+        print 'results', results
+        print 'ars', ars
+        print 'aps', aps
+        
+        print 'parameter ap_labels:', [i.ap_label for i in parameters]
+        print 'results ar_labels:', [i.ar_label for i in results]
+        print 'mp_representations:', [i.mp_representations for i in parameters]
+        
         global signConverter
 
         ''' First, unpickle the mp_to_ap mapping file '''
@@ -935,6 +949,7 @@ class point_details(Tkinter.Frame):
         ''' Now get the mp values '''
 
         mps = mp_to_ap_mapping[aps]
+        print 'mps', mps
         self.mps = mps
         print mp_to_ap_mapping[aps]
 
@@ -1154,20 +1169,38 @@ def optimiserThreadMethod():
     global signConverter
     global final_plot_frame
     global optimiser
+    global parameters
     global results
     global store_address
     global keepUpdating
     start_time = time.time()
 
     optimiser.optimise()
-    print results
+    #print results
     keepUpdating = False
 
     end_time = time.time()
 
     interactor.set_mp(initial_settings)
     save_details_files(datetime.datetime.fromtimestamp(start_time), datetime.datetime.fromtimestamp(end_time))
-
+    
+    if not os.path.exists('{0}/PARAMETERS'.format(store_address)):
+        os.makedirs('{0}/PARAMETERS'.format(store_address))
+        
+    if not os.path.exists('{0}/RESULTS'.format(store_address)):
+        os.makedirs('{0}/RESULTS'.format(store_address))
+        
+    for i in range(len(parameters)):
+        save_object(parameters[i], '{0}/PARAMETERS/parameter_{1}'.format(store_address, i))
+    for i in range(len(results)):
+        save_object(results[i], '{0}/RESULTS/result_{1}'.format(store_address, i))
+    
+    
+    
+    signConverter_file = open("{0}/signConverter.txt".format(store_address), 'w')
+    signConverter_file.write(str(signConverter))
+    signConverter_file.close()
+    
     ap_to_mp_mapping_file = open("{0}/ap_to_mp_mapping_file.txt".format(store_address), 'w')
     ap_to_mp_mapping_file.write(interactor.string_ap_to_mp_store())
     ap_to_mp_mapping_file.close()
@@ -1178,6 +1211,7 @@ def optimiserThreadMethod():
     progress_window.withdraw()
 
     ar_labels = [mrr.ar_label for mrr in results]
+    print 'ar_labels', ar_labels
     final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels, signConverter)
     final_plot_frame.initUi()
     final_plot_window.deiconify()

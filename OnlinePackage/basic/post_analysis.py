@@ -25,6 +25,7 @@ import time
 import datetime
 import imp
 import pickle
+import ast
 
 import numpy
 import matplotlib
@@ -40,9 +41,46 @@ store_address = None
 algorithm_name = ""
 algo_frame = None
 optimiser_wrapper = None
+results = []
+parameters = []
+
+class mp_group_representation:
+
+    def __init__(self):
+
+        self.mp_representations = []
+        self.list_iid = None
+        self.ap_label = None
+        self.relative_setting = None
+        self.ap_min = None
+        self.ap_max = None
 
 
-print os.getcwd()
+class mp_representation:
+
+    def __init__(self):
+
+        self.mp_obj = None
+        self.list_iid = None
+        #self.mp_min = None
+        #self.mp_max = None
+        self.mp_label = None
+
+
+class mr_representation:
+
+    def __init__(self):
+
+        self.mr_obj = None
+        self.list_iid = None
+        self.mr_label = None
+        self.ar_label = None
+        self.mr_to_ar_sign = None
+        self.max_min_text = None
+        self.max_min_sign = None
+
+
+
 class main_window(Tkinter.Frame):
     
     def __init__(self, parent):
@@ -85,7 +123,7 @@ class main_window(Tkinter.Frame):
 
         
         good_file = False
-        
+        Tkinter.Label(self.parent, text=" ", justify=Tkinter.LEFT).grid(row=1, column=0, columnspan=4, sticky=Tkinter.W+Tkinter.S)
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
@@ -101,7 +139,7 @@ class main_window(Tkinter.Frame):
                 algorithm_name += str(i)
             
         else:
-            tkMessageBox.showerror("Directory Error", "The selected directory does no contain the correct files. Please try again")
+            tkMessageBox.showerror("Directory Error", "The selected directory does not contain the correct files. Please try again")
             good_file = False
         
         Tkinter.Label(self.parent, text="{0} algorithm data directory detected".format(algorithm_name), justify=Tkinter.LEFT).grid(row=1, column=0, columnspan=4, sticky=Tkinter.W+Tkinter.S)
@@ -112,7 +150,7 @@ class main_window(Tkinter.Frame):
         #execfile(file_address, globals())
         global optimiser_wrapper
         optimiser_wrapper = imp.load_source(os.path.splitext(os.path.split(file_address)[1])[0], file_address)
-        self.algo_frame = optimiser_wrapper.import_algo_final_plot(self.parent)
+        
     
         
     def next_button(self):
@@ -120,11 +158,38 @@ class main_window(Tkinter.Frame):
         global store_address
         global algo_frame
         global optimiser_wrapper
+        global parameters
+        global results
             
-        optimiser_wrapper = self.load_algo_frame('{0}/{1}'.format(os.getcwd(), algorithm_name))
-        algo_frame = optimiser_wrapper.import_algo_final_plot(self.parent)
+        for filename in os.listdir('{0}/PARAMETERS'.format(store_address)):
+            parameter = pickle.load(open('{0}/PARAMETERS/{1}'.format(store_address, filename), 'r'))
+            parameters.append(parameter)
         
-        self.parent.withdraw()
+        for filename in os.listdir('{0}/RESULTS'.format(store_address)):
+            result = pickle.load(open('{0}/RESULTS/{1}'.format(store_address, filename), 'r'))
+            results.append(result)
+            
+        signConverter_read = open('{0}/signConverter.txt'.format(store_address), 'r')
+        signConverter_data = signConverter_read.read()
+        signConverter = ast.literal_eval(signConverter_data)
+        
+        ar_labels = [mrr.ar_label for mrr in results]
+        
+        print 'param', parameters
+        print 'results', results
+        print 'signconverter', signConverter
+        print 'ar labels', ar_labels
+        
+        self.load_algo_frame('{0}/{1}'.format(os.getcwd(), algorithm_name))
+        print 'loaded frame'
+        final_plot_frame = optimiser_wrapper.import_algo_final_plot(self.parent, point_frame.generateUi, ar_labels, signConverter)
+        print 'loaded final plot frame'
+        final_plot_frame.initUi()
+        print 'loaded Ui'
+        final_plot_window.deiconify()
+        print 'deiconified'
+        
+        #self.parent.withdraw()
 
 
 
@@ -208,10 +273,10 @@ class point_details(Tkinter.Frame):
         
         self.parent.deiconify()
     
-    def set_state(self):
-        
-        interactor.set_mp(self.mps)
-    
+#     def set_state(self):
+#         
+#         interactor.set_mp(self.mps)
+#     
     def x_button(self):
         print "Sup"
         self.parent.withdraw()
@@ -224,4 +289,13 @@ root = Tkinter.Tk()
 root.title("DLS Post Optimisation Analysis")
 
 the_main_window = main_window(root)
+
+point_window = Tkinter.Toplevel(root)
+point_frame = point_details(point_window)
+point_window.withdraw()
+
+final_plot_window = Tkinter.Toplevel(root)
+#final_plot_frame = display_final_plot(final_plot_window)
+final_plot_window.withdraw()
+
 root.mainloop()
