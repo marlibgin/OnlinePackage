@@ -1,4 +1,10 @@
-#MYSA python conversion
+
+'''
+MULTI-OBJECTIVE SIMULATED ANEALING ALGORITHM
+@authors: Greg Henderson
+@algorithm variation: Gareth Bird
+'''
+
 from __future__ import division
 #import pkg_resources
 #pkg_resources.require('numpy')
@@ -35,7 +41,7 @@ completed_generation = 0
 
 #The following is a list of functions useful to the optimiser bolow
 #used to deal with the case of progress handler for the optimiser class
-def nothing_function(data):
+def nothing_function(data, x):
     pass
 
 def is_dominated(x,y):
@@ -183,7 +189,7 @@ class optimiser:
         #when the optimsation is finished this is called in order to save the settings of the algorithm.
         file_return = ''
 
-        file_return += 'dlsoo_MOSA.py\n'
+        file_return += 'dlsoo_mosa.py algorithm\n'
         file_return += '===================\n\n'
         file_return += 'Number of Aneals: {0}\n'.format(self.nOAneals)
         file_return += 'Number of iterations: {0}\n'.format(self.nOIterations)
@@ -227,6 +233,7 @@ class optimiser:
         maxPoints = self.nOAneals*self.nOIterations
         while performAneal:
             aneal += 1
+            print aneal
             pointCount = 0
             failCount = 0
             minObjectives = currentObj[0]
@@ -360,22 +367,52 @@ class import_algo_frame(Tkinter.Frame):
     def get_dict(self):
         #extracts the inputted settings to put in settings dictionary
         setup = {}
-
-        setup['passInTempDrop'] = extractNumbers(self.i2.get())
-        setup['passOutTempDrop'] = extractNumbers(self.i3.get())
-        setup['noAneals'] = int(self.i4.get())
-        setup['noIterations'] = int(self.i5.get())
-        setup['failDropCount'] = int(self.i6.get())
-        setup['objCallStop'] = int(self.i7.get())
-        setup['anealPlot'] = int(self.i8.get())
+        good_data = True
+        try:
+            setup['passInTempDrop'] = extractNumbers(self.i2.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Tempertures input incorrectly.')
+            good_data = False
+        try:
+            setup['passOutTempDrop'] = extractNumbers(self.i3.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Tempertures input incorrectly.')
+            good_data = False
+        try:
+            setup['noAneals'] = int(self.i4.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Number of anneals must be an integer.')
+            good_data = False
+        try:
+            setup['noIterations'] = int(self.i5.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Number of iterations must be an integer.')
+            good_data = False
+        try:
+            setup['failDropCount'] = int(self.i6.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Fail drop count must be an integer.')
+            good_data = False
+        try:
+            setup['objCallStop'] = int(self.i7.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'Maximum number of measurements must be an integer.')
+            good_data = False
+        try:
+            setup['anealPlot'] = int(self.i8.get())
+        except:
+            tkMessageBox.showerror('MOSA settings error', 'The number of aneals before plotting must be an integer.')
+            good_data = False
 
         if self.add_current_to_individuals.get() == 0:
             setup['add_current_to_individuals'] = False
         elif self.add_current_to_individuals.get() == 1:
             setup['add_current_to_individuals'] = True
 
-
-        return setup
+        if good_data:
+            return setup
+        else:
+            return 'error'
 
 class import_algo_prog_plot(Tkinter.Frame):
 
@@ -503,14 +540,15 @@ class import_algo_final_plot(Tkinter.Frame):
 
 class final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, axis_labels, signConverter):
-
+    def __init__(self, parent, axis_labels, signConverter, post_analysis_store_address=None):
+        global store_address
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
         self.signConverter = signConverter
         self.axis_labels = axis_labels
-
+        if post_analysis_store_address is not None:
+            store_address = post_analysis_store_address
         self.initUi()
 
     def initUi(self):

@@ -12,6 +12,7 @@ import os
 import random
 import scipy
 import scipy.stats as stats
+from usefulFunctions import *
 
 import Tkinter
 import ttk
@@ -101,15 +102,6 @@ class optimiser:
             self.progress_handler = progress_handler
         self.progressTracker = []
         self.store_location = store_location
-        if self.searchDirections == []:
-            for i in range(self.paramCount):
-                searchDirection = []
-                for j in range(self.paramCount):
-                    if j == i:
-                        searchDirection.append(1)
-                    else:
-                        searchDirection.append(0)
-                self.searchDirections.append(searchDirection)
         self.numFuncEval = 0
         self.numDirSearched = 0
         self.pause = False
@@ -353,7 +345,8 @@ class optimiser:
         global store_address
         store_address = self.store_location
         maxDirSearches = self.nOIterations*self.paramCount
-        self.findInitSearchDirections()
+        if self.searchDirections == []:
+            self.findInitSearchDirections()
         print self.searchDirections
         #first set the inital values
         x0 = [(self.initParams[i] - self.down[i])/(self.up[i] - self.down[i]) for i in range(self.paramCount)]
@@ -408,6 +401,7 @@ class import_algo_frame(Tkinter.Frame):
     def __init__(self, parent):
         Tkinter.Frame.__init__(self, parent)
         self.parent = parent
+        self.dirsGiven = False
         self.initUi()
 
     def initUi(self):
@@ -438,6 +432,9 @@ class import_algo_frame(Tkinter.Frame):
         self.c0 = Tkinter.Checkbutton(self, text='Use current machine state', variable=self.add_current_to_individuals)
         self.c0.grid(row=9,column=0)
 
+        self.dirButton = Tkinter.Button(self, text='Give Directions', command=self.askNum)
+        self.dirButton.grid(row=11, column=0)
+
         Tkinter.Label(self, text="Recommendations:\n Consult doccumentation for the MATLAB version of RCDS.", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
 
         self.i2.insert(0, '10')
@@ -449,20 +446,59 @@ class import_algo_frame(Tkinter.Frame):
     def get_dict(self):
         #extracts the inputted settings to put in settings dictionary
         setup = {}
-
-        setup['nOIterations'] = int(self.i2.get())
-        setup['tolerance'] = float(self.i3.get())
-        setup['objCallStop'] = int(self.i4.get())
-        setup['initStep'] = float(self.i5.get())
-        setup['numTestPoints'] = int(self.i6.get())
+        good_data = True
+        try:
+            setup['nOIterations'] = int(self.i2.get())
+        except:
+            ttk.showerror('RCDS settings error', 'The value for number of iterations must be an integer.')
+            good_data = False
+        try:
+            setup['tolerance'] = float(self.i3.get())
+        except:
+            ttk.showerror('RCDS settings error', 'The finishing tolerance must be a number.')
+            good_data = False
+        try:
+            setup['objCallStop'] = int(self.i4.get())
+        except:
+            ttk.showerror('RCDS settings error', 'The maximum number of measurements must be an integer.')
+            good_data = False
+        try:
+            setup['initStep'] = float(self.i5.get())
+        except:
+            ttk.showerror('RCDS settings error', 'The initial step must be a number.')
+            good_data = False
+        try:
+            setup['numTestPoints'] = int(self.i6.get())
+        except:
+            ttk.showerror('RCDS settings error', 'The number of test points must be an integer.')
+            good_data = False
         setup['searchDirections'] = []
         if self.add_current_to_individuals.get() == 0:
             setup['add_current_to_individuals'] = False
         elif self.add_current_to_individuals.get() == 1:
             setup['add_current_to_individuals'] = True
+        if self.dirsGiven:
+            for i in range(int(self.i7.get())):
+                setup['searchDirections'].append(list(extractNumbers(self.dirInputs[i].get())))
+        if good_data:
+            return setup
+        else:
+            return 'error'
 
+    def askNum(self):
+        Tkinter.Label(self, text='Number of directions to add:').grid(row=12, column=0, sticky=Tkinter.E)
+        self.i7 = Tkinter.Entry(self)
+        self.i7.grid(row=12, column=1, sticky=Tkinter.E + Tkinter.W)
+        self.dirButton2 = Tkinter.Button(self, text='Next', command=self.genInputsDir)
+        self.dirButton2.grid(row=13, column=0)
 
-        return setup
+    def genInputsDir(self):
+        self.dirsGiven = True
+        self.dirInputs = []
+        for i in range(int(self.i7.get())):
+            Tkinter.Label(self, text='Direction {0}'.format(i + 1)).grid(row=14+i,column=0, sticky=Tkinter.E)
+            self.dirInputs.append(Tkinter.Entry(self))
+            self.dirInputs[i].grid(row=14+i, column=1, sticky=Tkinter.E + Tkinter.W)
 
 class import_algo_prog_plot(Tkinter.Frame):
 
@@ -515,7 +551,8 @@ class import_algo_prog_plot(Tkinter.Frame):
 
 class import_algo_final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, pick_handler, axis_labels, signConverter):
+    def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address=None):
+        global store_address
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
@@ -523,6 +560,8 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.pick_handler = pick_handler
         self.axis_labels = ['Number of directions searched', axis_labels[0]]
+        if post_analysis_store_address is not None:
+            store_address = post_analysis_store_address
         #self.initUi()
 
     def initUi(self):
@@ -560,7 +599,6 @@ class import_algo_final_plot(Tkinter.Frame):
         y_data = my_artist.get_ydata()
         ind = event.ind
         point = tuple(zip(self.signConverter[0]*x_data[ind], self.signConverter[1]*y_data[ind]))
-
         print "Point selected, point: {0}".format(point)
 
         ''' By this point we have the ars, but not the aps. We get these next. '''
@@ -590,8 +628,7 @@ class import_algo_final_plot(Tkinter.Frame):
 
         ''' By this point he have the aps, but not the mps. We don't find these in the algorithm. '''
 
-
-        self.pick_handler(point[0], point_a_params)
+        self.pick_handler((point[0][1],), point_a_params)
 
 
 
