@@ -18,15 +18,21 @@ def metric1(acturalFront, calculatedFront):
 def metric2(calculatedFront, sigma):
     spread = 0
     for i in calculatedFront:
-        sum += len([j for j in calculatedFront if distanceSquared(i, j) > sigma**2])
-    return float(sum)/float(len(calculatedFront) - 1)
+        spread += len([j for j in calculatedFront if distanceSquared(i, j) > sigma**2])
+    if len(calculatedFront) == 1:
+        return 1
+    else:
+        return float(spread)/float(len(calculatedFront) - 1)
 
 def metric3(calculatedFront):
-    sum = 0
+    spread = 0
     for i in range(len(calculatedFront[0])):
         distSet = []
         for j in range(len(calculatedFront)):
             for k in range(j+1, len(calculatedFront)):
                 distSet += [abs(calculatedFront[j][i] - calculatedFront[k][i])]
-        sum += min(distSet)
-    return sum**0.5
+        try:
+            spread += max(distSet)
+        except:
+            pass
+    return spread**0.5
