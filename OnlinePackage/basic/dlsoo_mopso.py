@@ -60,6 +60,14 @@ class optimiser:
         self.progress_handler = progress_handler
         
         self.pause = False
+        self.cancel = False
+        
+        self.add_current_to_individuals = settings_dict['add_current_to_individuals']
+        if self.add_current_to_individuals == True:
+            self.initParams = interactor.get_ap()
+        else:
+            self.initParams = []
+            
         print "interactor.param_var_groups: {0}".format(interactor.param_var_groups)
         print "interactor.measurement_vars: {0}".format(interactor.measurement_vars)
     
@@ -118,9 +126,13 @@ class optimiser:
             print completed_percentage*100,'%'
                        
             self.progress_handler(completed_percentage, completed_iteration)
-        
-        while self.pause:                                                         #keep update bar if algorithm paused
+            
+            while self.pause:                                                         #keep update bar if algorithm paused
                 self.progress_handler(completed_percentage, completed_iteration)
+                
+            if self.cancel:
+                break
+        
             
         return results, errors
     
@@ -230,43 +242,26 @@ class optimiser:
         pareto_front = list(swarm)                                                               #update global pareto_front
 
 
-    def density_estimator(self, solution, current_swarm):
-        """
-        This function counts the number of particles that are near a solution in the pareto front.
+    def normalised_front(self, front):
         
-        Args:
-            solution: solution in pareto front of the form (obj1,obj2,...)
-            current_swarm: list of solutions for current swarm of the form ((obj1,obj2,...),(obj1,obj2,...),...)
-            
-        Returns:
-            Number of particles near the solution in the pareto-front.
-        """
-        global pareto_front 
-        pareto_front_obj = self.get_pareto_objectives(pareto_front)                                         #obtain list of objectives of pareto front                                    
-        kd_tree = spatial.KDTree(pareto_front_obj)                                                          #form KDTree of all other particles in pareto-front
         
-        nearest_neighbours = [pareto_front_obj[i] for i in kd_tree.query(solution, len(solution)+1)[1]]     #find dim(solution) +1 nearest neighbours to solution 
-        del nearest_neighbours[0]                                                                           #ignore closest as this is solution itself
-        
-        swarm_in_box = list(current_swarm)    
-        for i in range(len(solution)):                                                                      #define hyper-cuboid with closest neighbours at vertices
-            nearest_neighbour_coords = [row[i] for row in nearest_neighbours]
-            coords = [row[i] for row in swarm_in_box]
-            coord_boundaries = [min(nearest_neighbour_coords),max(nearest_neighbour_coords)]
+        front_x = [i[0] for i in front]
+        front_y = [i[1] for i in front]
+
+        max_x = max(front_x)
+        max_y = max(front_y)
     
-            indices_to_remove = []
-            for j in range(len(swarm_in_box)):
-                if coords[j]<coord_boundaries[0] or coords[j]>coord_boundaries[1]:                          #find particle indices that lie outside hyper-cuboid
-                    indices_to_remove.append(j)
-            
-        indices_to_remove = sorted(set(indices_to_remove), reverse=True)
-        for i in indices_to_remove:
-            del swarm_in_box[i]                                                                             #obtain list of particles that are within bounds of hyper-cuboid                                  
-                    
-        return len(swarm_in_box)                                                                            #return number of particles inside hyper-cuboid 
+        min_x = min(front_x)
+        min_y = min(front_y)
+
+        x_norm = [(i-min_x)/(max_x-min_x) for i in front_x]
+        y_norm = [(i-min_y)/(max_y-min_y) for i in front_y]
+
+        front_norm = zip(x_norm,y_norm)
+        return front_norm
     
     
-    def get_leader_roulette_wheel(self, current_swarm):
+    def get_leader_roulette_wheel(self):
         """
         Function that produces a roulette wheel selection list for solutions in pareto-front
         
@@ -277,21 +272,29 @@ class optimiser:
             roulette_wheel: list of roulette wheel probabilities inversely proportional to number of particles near each particle in the pareto-front.
         """
         global pareto_front
-
-        if len(pareto_front) < len(pareto_front[0][1])+1:                                                                   #no roulette wheel possible if not enough solutions in pareto-front
+        
+        if len(pareto_front) < 2:
             return []
+        pareto_obj = self.get_pareto_objectives(pareto_front)
+        swarm_size = len(pareto_obj)
+        normalised_front = self.normalised_front(pareto_obj)
+        kd_tree = spatial.KDTree(normalised_front)
         
-        pareto_front_positions = self.get_pareto_objectives(pareto_front)                                                   #get pareto-front solutions
-        current_swarm_objectives = [i.fit_i for i in current_swarm]                                                         #get swarm solutions 
+        density = [len(kd_tree.query_ball_point(x=i, r=0.05))-1 for i in normalised_front]
+        density_sum = sum(density)
         
-        fitness = [(1/(self.density_estimator(i, current_swarm_objectives)+1)) for i in pareto_front_positions]             #calculate inverse of density  
-                   
-        total_fit = sum(fitness)   
-        roulette_wheel = len(fitness) * [fitness[0]/(total_fit+1)]                                                          #define roulette wheel              
+        if density_sum == 0:
+            inv_density = [1 for i in range(swarm_size)] 
+        else :
+            inv_density = [density_sum-i for i in density]
         
-        for f in range(1,len(fitness)):
-            roulette_wheel[f] = roulette_wheel[f-1] + fitness[f]/(total_fit+1)                                              #calculate cumulative probabilities
-
+        inv_density_size = sum(inv_density)
+        
+        roulette_wheel = [inv_density[0]/inv_density_size]
+        for i in range(1,swarm_size):
+            cumulative_prob = roulette_wheel[i-1] + inv_density[i]/inv_density_size
+            roulette_wheel.append(cumulative_prob)
+        #print 'roulette wheel', roulette_wheel
         return roulette_wheel
        
        
@@ -308,7 +311,11 @@ class optimiser:
         """
         
         objectives, errors = self.evaluate_swarm(swarm)                                    #obtain objective measurements and errors for all particles.
-        for i in range(len(swarm)):                
+        for i in range(len(swarm)):  
+            
+            if self.cancel:
+                break
+                          
             swarm[i].fit_i = objectives[i]                                                 #update current objective fit.
             swarm[i].error = errors[i]                                                     #update current objective error.
         
@@ -343,15 +350,15 @@ class optimiser:
 
 
         
-#         if self.add_current_to_individuals:
-#             current_ap = self.interactor.get_ap()
-#             self.individuals = list(self.individuals)
-#             self.individuals[0] = current_ap
+        
     
         swarm = []
         for i in range(0, self.swarm_size):                                                       #initialise the swarm 
             swarm.append(Particle(self.param_count, self.min_var, self.max_var))
-        
+            
+        if self.add_current_to_individuals:
+            current_ap = self.interactor.get_ap()
+            swarm[0].choose_position(current_ap)
         
         self.evaluate(swarm, initial_evaluation=True)   
         proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm]                         #define the front for sorting 
@@ -360,16 +367,22 @@ class optimiser:
         self.dump_fronts(front_to_dump, 0)                                                        #dump new front in file
         completed_iteration = 1
         self.progress_handler(completed_percentage, completed_iteration)
-         
+        
+        
+             
         for t in range(1,self.max_iter):                                                          #begin iteration 
-            leader_roullete_wheel = self.get_leader_roulette_wheel(swarm)                         #calculate leader roulette wheel for the swarm
+            leader_roullete_wheel = self.get_leader_roulette_wheel()                              #calculate leader roulette wheel for the swarm
             
             for j in range(0, self.swarm_size):                                                   #for every particle:                                               
                 swarm[j].select_leader(leader_roullete_wheel)                                     #select leader
                 swarm[j].update_velocity(self.inertia, self.social_param, self.cognitive_param)   #update velocity   
                 swarm[j].update_position()                                                        #update position
              
-            self.evaluate(swarm)                                                                  #evaluate new positions            
+            self.evaluate(swarm) 
+            
+            if self.cancel:
+                break                                                                 #evaluate new positions
+                    
             proposed_pareto = [[j.position_i,j.fit_i,j.error] for j in swarm] + pareto_front      #define front for sorting
             self.find_pareto_front(proposed_pareto)                                               #find the non-dominating set
             front_to_dump = list(pareto_front)                                                    #dump new front in file
@@ -445,7 +458,9 @@ class Particle:
                 
         self.velocity_i = tuple(new_velocity)                                                          #update particle velocity attribute                             
         self.position_i = tuple(new_position)                                                          #update particle position attribu   
-            
+        
+    def choose_position(self, x0):
+        self.position_i = tuple(x0)    
 
     def select_leader(self, roulette_wheel):
         global pareto_front
@@ -495,10 +510,10 @@ class import_algo_frame(Tkinter.Frame):
         self.i4 = Tkinter.Entry(self)
         self.i4.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        #self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
-        #self.c0.grid(row=9, column=1)
+        self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
+        self.c0.grid(row=5, column=1)
         
-        Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=5, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=6, column=0, columnspan=2, sticky=Tkinter.W)
         
         self.i0.insert(0, "50")
         self.i1.insert(0, "5")
@@ -544,10 +559,10 @@ class import_algo_frame(Tkinter.Frame):
             tkMessageBox.showerror("MOPSO settings error", "The value for \"Cognitive Parameter\": \"{0}\", could not be converted to a float".format(self.i4.get()))
             good_data = False
         
-#         if self.add_current_to_individuals.get() == 0:
-#             setup['add_current_to_individuals'] = False
-#         elif self.add_current_to_individuals.get() == 1:
-#             setup['add_current_to_individuals'] = True
+        if self.add_current_to_individuals.get() == 0:
+            setup['add_current_to_individuals'] = False
+        elif self.add_current_to_individuals.get() == 1:
+            setup['add_current_to_individuals'] = True
         
         if good_data:
             return setup

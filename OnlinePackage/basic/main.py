@@ -138,13 +138,14 @@ optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
 
 optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
                   'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
-                  'Multi-Objective (NSGA-II)': 'dlsoo-nsga2.py',
+                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
                   'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_rcds.py'}
 
 interactor = None
 optimiser = None
 useMachine = False
 signConverter = []
+Striptool_On = None
 #Sign converter converts algo params to machine params. This is used in the plotting below.
 
 mp_addresses = []
@@ -193,8 +194,11 @@ class main_window(Tkinter.Frame):
         self.initUi()
 
     def initUi(self):
-
+        
         self.parent.title("DLS Machine Optimiser")
+
+        self.striptool_on = Tkinter.IntVar()
+        self.striptool_on.set(0)
 
         self.parent.columnconfigure(0, weight=1)
         self.parent.columnconfigure(1, weight=1)
@@ -254,8 +258,11 @@ class main_window(Tkinter.Frame):
         self.btn_algo_settings = Tkinter.Button(self.parent, text="Next...", bg="red", command=self.next_button)
         self.btn_algo_settings.grid(row=8, column=5, sticky=Tkinter.E+Tkinter.W)
 
-        self.btn_debug_setup = Tkinter.Button(self.parent, text="Debug Setup*")
-        self.btn_debug_setup.grid(row=8, column=4, sticky=Tkinter.E+Tkinter.W)
+        self.r0 = Tkinter.Radiobutton(self.parent, text="Striptool Off (Recommended)", variable=self.striptool_on, value=0)
+        self.r0.grid(row=8, column=4, sticky=Tkinter.E+Tkinter.W)
+
+        self.r1 = Tkinter.Radiobutton(self.parent, text="Striptool On", variable=self.striptool_on, value=1)
+        self.r1.grid(row=8, column=3, sticky=Tkinter.E+Tkinter.W)
 
         self.btn_load_config = Tkinter.Button(self.parent, text="Load configuration", command=self.load_config)
         self.btn_load_config.grid(row=8, column=0, sticky=Tkinter.E+Tkinter.W)
@@ -312,7 +319,9 @@ class main_window(Tkinter.Frame):
 
     def next_button(self):
         global optimiser_wrapper_address
+        global Striptool_On
         optimiser_wrapper_address = optimiserFiles[self.optimiserChoice.get()]
+        Striptool_On = self.striptool_on.get()
         add_obj_func_window.withdraw()
         add_pv_window.withdraw()
         add_bulk_pv_window.withdraw()
@@ -772,6 +781,7 @@ class show_progress(Tkinter.Frame):
 
     def initUi(self):
         global signConverter
+        global Striptool_On
         #redstyle = ttk.Style()
         #redstyle.theme_use("clam")
         #redstyle.configure("red.Horizontal.TProgressbar", foreground="red", background="red")
@@ -789,9 +799,10 @@ class show_progress(Tkinter.Frame):
         self.pbar_progress = ttk.Progressbar(self.parent, length=400, variable=progress)
         self.pbar_progress.grid(row=0, column=0, columnspan=4, padx=10, pady=10)
         #self.pbar_progress.pack()
-
-        self.strip_plot = strip_plot(self.parent)
-        self.strip_plot.grid(row=2, column=0, columnspan=4)
+        
+        if Striptool_On == 1:
+            self.strip_plot = strip_plot(self.parent)
+            self.strip_plot.grid(row=2, column=0, columnspan=4)
 
         #self.lbl_percentage = Tkinter.Label(self.parent, text="0%")
         #self.lbl_percentage.grid(row=1, column=0)
@@ -816,6 +827,7 @@ class show_progress(Tkinter.Frame):
 
 
     def handle_progress(self, normalised_percentage, generation):
+        global Striptool_On
         #self.pbar_progress.step(1/max_gen * 100)
         #root.update()
 
@@ -825,7 +837,8 @@ class show_progress(Tkinter.Frame):
         progress.set(normalised_percentage * 100)
         progress_frame.update()
         #print 'testing'
-        self.strip_plot.update()
+        if Striptool_On == 1:
+            self.strip_plot.update()
 
         self.progress_plot.update()
 
