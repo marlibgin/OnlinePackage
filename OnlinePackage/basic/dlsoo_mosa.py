@@ -2,7 +2,7 @@
 '''
 MULTI-OBJECTIVE SIMULATED ANEALING ALGORITHM
 @authors: Greg Henderson
-@algorithm variation: Gareth Bird
+@algorithm variation designer: Gareth Bird
 '''
 
 from __future__ import division
@@ -93,7 +93,12 @@ class optimiser:
         self.domFrontParam = []
         self.domFrontObjectives = []
         self.domFrontErrors = []
-        self.inTemp = []
+        #dumpFlag is used to let the algorithm know to save the front every so often
+        try:
+            self.dumpFlag = settings_dict['dumpFlag']
+        except:
+            self.dumpFlag = True
+        #try statement used as this might not be in settings_dict
         if progress_handler == None:
             self.progress_handler = nothing_function
         else:
@@ -219,6 +224,8 @@ class optimiser:
         #this varaible is used to keep track of progress
         if self.initParams == []:
             self.setUnifRanPoints()
+        else:
+            self.param = self.initParams
         currentParams = self.param
         currentObj = self.getObjectives()
         #initialise the pareto fronts
@@ -233,7 +240,6 @@ class optimiser:
         maxPoints = self.nOAneals*self.nOIterations
         while performAneal:
             aneal += 1
-            print aneal
             pointCount = 0
             failCount = 0
             minObjectives = currentObj[0]
@@ -280,7 +286,6 @@ class optimiser:
                 if objCall >= self.objCallStop:
                     keepIterating = False
                     performAneal = False
-                    print 'Exceeded the maximum number of measurements'
                 elif self.cancel:
                     keepIterating = False
                     self.performAneal = False
@@ -303,13 +308,13 @@ class optimiser:
             currentParams = self.domFrontParam[newPoint]
             if aneal >= self.nOAneals:
                 performAneal = False
-            if (aneal % self.anealPlot) == 0:
+            if (aneal % self.anealPlot) == 0 and self.dumpFlag:
                 #update the front files and let the GUI know of the progress
                 completed_generation += 1
                 self.dumpFront()
                 self.progress_handler(float(collectivePointCount)/float(maxPoints), collectivePointCount)
-        self.dumpFront()
-        print objCall
+        if self.dumpFlag:
+            self.dumpFront()
 
 class import_algo_frame(Tkinter.Frame):
     #this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.

@@ -547,7 +547,6 @@ class import_algo_prog_plot(Tkinter.Frame):
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
         self.canvas2.show()
-        time.sleep(5)
 
 class import_algo_final_plot(Tkinter.Frame):
 
