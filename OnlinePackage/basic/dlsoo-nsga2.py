@@ -75,8 +75,8 @@ class optimiser:
         self.store_location = store_location
         self.population_size = settings_dict['pop_size']
         self.generations = settings_dict['max_gen']
-        self.param_count = settings_dict['param_count']
-        self.result_count = settings_dict['result_count']
+        self.param_count = len(interactor.param_var_groups)
+        self.result_count = len(interactor.measurement_vars)
         self.min_var = a_min_var
         self.max_var = a_max_var
         self.pcross = settings_dict['pcross']
@@ -96,7 +96,7 @@ class optimiser:
         
         if individuals == None:
             temp = []
-            for i in range(settings_dict['param_count']):
+            for i in range(self.param_count):
                 temp.append((self.max_var[i] + self.min_var[i])/2)
             
             self.individuals = (temp,)
@@ -120,7 +120,7 @@ class optimiser:
         
         file_return = ""
         
-        file_return += "NSGA-II algorithm\n"
+        file_return += "dlsoo-nsga2.py algorithm\n"
         file_return += "=================\n\n"
         file_return += "Generations: {0}\n".format(self.generations)
         file_return += "Population size: {0}\n\n".format(self.population_size)
@@ -485,7 +485,7 @@ class optimiser:
     '''
     def dump_fronts(self, fronts, generation):
         
-        f = file("{0}/fronts.{1}".format(self.store_location, generation), "w")
+        f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, generation), "w")
         f.write("fronts = (\n")
         for i, front in enumerate(fronts):
             f.write("( # Front %d\n" % i)
@@ -622,18 +622,8 @@ class import_algo_frame(Tkinter.Frame):
         self.i6.grid(row=6, column=1, sticky=Tkinter.E+Tkinter.W)
         self.i6.insert(0, time.time())
         
-        Tkinter.Label(self, text="Parameter count:").grid(row=7, column=0, sticky=Tkinter.E)
-        self.i7 = Tkinter.Entry(self)
-        self.i7.grid(row=7, column=1, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self, text="Result count:").grid(row=8, column=0, sticky=Tkinter.E)
-        self.i8 = Tkinter.Entry(self)
-        self.i8.grid(row=8, column=1, sticky=Tkinter.E+Tkinter.W)
-        
-        self.c0 = Tkinter.Checkbutton(self, text="Use current machine state", variable=self.add_current_to_individuals)
-        self.c0.grid(row=9, column=1)
-        
-        Tkinter.Label(self, text="Recommended:\nMutation probability: 0.1 / (number of decision variables)\nCrossover probability: 0.9\nEta_m: 20\nEta_c: 20\nSeed: Any int or float (default is seconds since system epoch)", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommended:\nMutation probability: 0.1 / (number of decision variables)\nCrossover probability: 0.9\nEta_m: 20\nEta_c: 20\nSeed: Any int or float (default is seconds since system epoch)", justify=Tkinter.LEFT).grid(row=7, column=0, columnspan=2, sticky=Tkinter.W)
         
         self.i0.insert(0, "10")
         self.i1.insert(0, "10")
@@ -641,8 +631,7 @@ class import_algo_frame(Tkinter.Frame):
         self.i3.insert(0, "0.9")
         self.i4.insert(0, "20")
         self.i5.insert(0, "20")
-        self.i7.insert(0, "3")
-        self.i8.insert(0, "2")
+
         
     
     def get_dict(self):
@@ -692,17 +681,6 @@ class import_algo_frame(Tkinter.Frame):
             tkMessageBox.showerror("NSGA-II settings error", "The value for \"Seed\": \"{0}\", could not be converted to a float".format(self.i6.get()))
             good_data = False
         
-        try:
-            setup['param_count'] = int(self.i7.get())
-        except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Parameter count\": \"{0}\", could not be converted to an int".format(self.i7.get()))
-            good_data = False
-        
-        try:
-            setup['result_count'] = int(self.i8.get())
-        except:
-            tkMessageBox.showerror("NSGA-II settings error", "The value for \"Result count\": \"{0}\", could not be converted to an int".format(self.i8.get()))
-            good_data = False
         
         if self.add_current_to_individuals.get() == 0:
             setup['add_current_to_individuals'] = False
@@ -720,109 +698,114 @@ class import_algo_frame(Tkinter.Frame):
 
 
 class import_algo_prog_plot(Tkinter.Frame):
-    
-    def __init__(self, parent):
-        
+
+    def __init__(self, parent, axis_labels, signConverter):
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+        self.signConverter = signConverter
+        self.axis_labels = axis_labels
+
         self.initUi()
-    
+
     def initUi(self):
-        
+
         self.fig = Figure(figsize=(5, 5), dpi=100)
         self.a = self.fig.add_subplot(111)
-        
+
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.show()
         self.canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
-        
-    
+
+
+
     def update(self):
         global store_address
         global completed_generation
-        
         self.a.clear()
-        
         file_names = []
-        for i in range(completed_generation + 1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        plot.plot_pareto_fronts(file_names, self.a, ["ax1", "ax2"])
-        
+        for i in range(completed_generation):
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
+
+        plot.plot_pareto_fronts(file_names, self.a, self.axis_labels, self.signConverter)
+
         #self.canvas = FigureCanvasTkAgg(self.fig, self.parent)
         self.canvas.show()
-        
-    
-
 
 class import_algo_final_plot(Tkinter.Frame):
-    
-    def __init__(self, parent, pick_handler, axis_labels):
+
+    def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address = None):
+        
+        global store_address
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+        self.signConverter = signConverter
+
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
+        
+        if post_analysis_store_address is not None:
+            store_address = post_analysis_store_address
+        
         #self.initUi()
-    
+
     def initUi(self):
         global store_address
-        global completed_generation
-        
-        self.parent.title("NSGA-II Results")
-        
+
+        self.parent.title("NSGA-II results")
+
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
-        
+
         self.rowconfigure(0, weight=1)
-        
+
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
         
-        self.plot_frame = final_plot(self, self.axis_labels)
-        
+        self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
+
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
-        
+
         Tkinter.Label(self, text="View mode:").grid(row=0, column=1)
-        
+
         self.cbx_view_mode = ttk.Combobox(self, textvariable=self.view_mode, values=('No focus', 'Best focus'))
         self.cbx_view_mode.bind("<<ComboboxSelected>>", lambda x: self.plot_frame.initUi())
         self.cbx_view_mode.grid(row=0, column=2)
-        
+
         self.grid(sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
         self.parent.columnconfigure(0, weight=1)
         self.parent.rowconfigure(0, weight=1)
-    
+
     def on_pick(self, event):
         
+        global store_address
+        completed_generation = len(os.listdir('{0}/FRONTS'.format(store_address)))
         # Lookup ap values
         my_artist = event.artist
         x_data = my_artist.get_xdata()
         y_data = my_artist.get_ydata()
         ind = event.ind
-        point = tuple(zip(x_data[ind], y_data[ind]))
-        
+        point = tuple(zip(self.signConverter[0]*x_data[ind], self.signConverter[1]*y_data[ind]))
+
         print "Point selected, point: {0}".format(point)
-        
+
         ''' By this point we have the ars, but not the aps. We get these next. '''
-        
+
         file_names = []
-        #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_generation+1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        
+        #for i in range(algo_settings_dict['max_gen'])
+        for i in range(completed_generation):
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
+
+
         fs = []
-    
+
         for file_name in file_names:
             execfile(file_name)
-            
+
             fs.append(locals()['fronts'][0])
-        
+
         aggregate_front_data = []
         for i in fs:
             for j in i:
@@ -830,65 +813,60 @@ class import_algo_final_plot(Tkinter.Frame):
         aggregate_front_results = [i[1] for i in aggregate_front_data]
         point_number = aggregate_front_results.index(point[0])
         point_a_params = aggregate_front_data[point_number][0]
-        
+
         print "ap: {0}".format(point_a_params)
-        
+
         ''' By this point he have the aps, but not the mps. We don't find these in the algorithm. '''
-        
-        
+
+
         self.pick_handler(point[0], point_a_params)
-        
-        
-        
+
+
+
         #self.pick_handler()
 
 
 
+
+
 class final_plot(Tkinter.Frame):
-    
-    def __init__(self, parent, axis_labels):
-        
+
+    def __init__(self, parent, axis_labels, signConverter):
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
+        self.signConverter = signConverter
         self.axis_labels = axis_labels
-        
+
         self.initUi()
-    
+
     def initUi(self):
-        
+        global store_address
+        completed_generation = len(os.listdir('{0}/FRONTS'.format(store_address)))
+
         for widget in self.winfo_children():
             widget.destroy()
-        
+
         fig = Figure(figsize=(5, 5), dpi=100)
         a = fig.add_subplot(111)
         fig.subplots_adjust(left=0.15)
         #a.plot(range(10), [i**2 for i in range(10)])
-        
+
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
-        for i in range(completed_generation+1):
-            file_names.append("{0}/fronts.{1}".format(store_address, i))
-        
-        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get())
-        
+        for i in range(completed_generation):
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i))
+            
+        print 'file names', file_names
+
+        plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
+
         canvas = FigureCanvasTkAgg(fig, self)
         canvas.mpl_connect('pick_event', self.parent.on_pick)
         canvas.show()
         canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
+
         toolbar = NavigationToolbar2TkAgg(canvas, self)
         toolbar.update()
         canvas._tkcanvas.pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=True)
-        
-
-
-
-
-
-
-
-
-
-
-

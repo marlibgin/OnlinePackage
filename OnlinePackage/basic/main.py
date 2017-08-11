@@ -498,86 +498,120 @@ class add_pv(Tkinter.Frame):
 
 
 class add_bulk_pv(Tkinter.Frame):
-
+    
     def __init__(self, parent):
-
+        
         Tkinter.Frame.__init__(self, parent)
-
+        
         self.parent = parent
         self.parent.protocol('WM_DELETE_WINDOW', self.x_button)
-
+        
         self.initUi()
-
+    
     def initUi(self):
-
+        
         self.parent.title("Add Bulk Parameter PVs")
-
+        
         self.setting_mode = Tkinter.IntVar()
         self.setting_mode.set(2)
-
+        
         Tkinter.Label(self.parent, text="Group name:").grid(row=0, column=0, sticky=Tkinter.E, pady=(10, 0))
         self.i6 = Tkinter.Entry(self.parent)
         self.i6.grid(row=0, column=1, columnspan=2, sticky=Tkinter.W+Tkinter.E, pady=(10, 0), padx=(0, 10))
-
-        ttk.Separator(self.parent, orient='horizontal').grid(row=1, column=0, columnspan=3, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
-
-        Tkinter.Label(self.parent, text="PV addresses:").grid(row=2, column=0, sticky=Tkinter.E+Tkinter.W)
-        Tkinter.Label(self.parent, text="Lower bounds:").grid(row=2, column=1, sticky=Tkinter.E+Tkinter.W)
-        Tkinter.Label(self.parent, text="Upper bounds:").grid(row=2, column=2, sticky=Tkinter.E+Tkinter.W)
-
+        
+        Tkinter.Label(self.parent, text="Group file (optional):").grid(row=1, column=0, sticky=Tkinter.E)
+        self.i_file_address = Tkinter.Entry(self.parent)
+        self.i_file_address.grid(row=1, column=1, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
+        self.btn_browse_file_address = Tkinter.Button(self.parent, text="Add group file...", command=self.browse_save_location)
+        self.btn_browse_file_address.grid(row=1, column=2, sticky=Tkinter.E+Tkinter.W)
+        
+        ttk.Separator(self.parent, orient='horizontal').grid(row=2, column=0, columnspan=3, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
+        
+        Tkinter.Label(self.parent, text="PV addresses:").grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+        Tkinter.Label(self.parent, text="Lower bounds:").grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        Tkinter.Label(self.parent, text="Upper bounds:").grid(row=3, column=2, sticky=Tkinter.E+Tkinter.W)
+        
         self.i0 = Tkinter.Text(self.parent, width=40)
-        self.i0.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.i0.grid(row=4, column=0, sticky=Tkinter.E+Tkinter.W)
         self.i1 = Tkinter.Text(self.parent, width=40)
-        self.i1.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.i1.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
         self.i2 = Tkinter.Text(self.parent, width=40)
-        self.i2.grid(row=3, column=2, sticky=Tkinter.E+Tkinter.W)
-
-        Tkinter.Label(self.parent, text="Change:").grid(row=4, column=0, sticky=Tkinter.E)
-
+        self.i2.grid(row=4, column=2, sticky=Tkinter.E+Tkinter.W)
+        
+        Tkinter.Label(self.parent, text="Change:").grid(row=5, column=0, sticky=Tkinter.E)
+        
         self.i4 = Tkinter.Entry(self.parent)
-        self.i4.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
-
+        self.i4.grid(row=5, column=1, sticky=Tkinter.E+Tkinter.W)
+        
         self.i5 = Tkinter.Entry(self.parent)
-        self.i5.grid(row=4, column=2, sticky=Tkinter.E+Tkinter.W)
-
-        Tkinter.Label(self.parent, text="Delay:").grid(row=5, column=0, sticky=Tkinter.E)
+        self.i5.grid(row=5, column=2, sticky=Tkinter.E+Tkinter.W)
+        
+        Tkinter.Label(self.parent, text="Delay:").grid(row=6, column=0, sticky=Tkinter.E)
         self.i3 = Tkinter.Entry(self.parent)
-        self.i3.grid(row=5, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
-
+        self.i3.grid(row=6, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
+        
         self.r0 = Tkinter.Radiobutton(self.parent, text="Relative from bounds", variable=self.setting_mode, value=0)
-        self.r0.grid(row=6, column=1)
-
+        self.r0.grid(row=7, column=1)
+        
         self.r1 = Tkinter.Radiobutton(self.parent, text="Absolute from bounds", variable=self.setting_mode, value=1)
-        self.r1.grid(row=6, column=2)
-
+        self.r1.grid(row=7, column=2)
+        
         self.r2 = Tkinter.Radiobutton(self.parent, text="Relative with change", variable=self.setting_mode, value=2)
-        self.r2.grid(row=6, column=0)
-
+        self.r2.grid(row=7, column=0)
+        
         self.b0 = Tkinter.Button(self.parent, text="Cancel", command=self.parent.withdraw)
-        self.b0.grid(row=7, column=1, sticky=Tkinter.E+Tkinter.W)
-
+        self.b0.grid(row=8, column=1, sticky=Tkinter.E+Tkinter.W)
+        
         self.b1 = Tkinter.Button(self.parent, text="Add", command=self.add_pvs)
-        self.b1.grid(row=7, column=2, sticky=Tkinter.E+Tkinter.W)
-
-
+        self.b1.grid(row=8, column=2, sticky=Tkinter.E+Tkinter.W)
+        
+    def browse_save_location(self):
+        store_directory = tkFileDialog.askopenfile()
+        self.i_file_address.delete(0, 'end')
+        self.i_file_address.insert(0, store_directory.name)
+        groupPV_address = store_directory
+        
+        print groupPV_address
+        
+        group_file = open(groupPV_address.name, 'r')
+        wr = csv.reader(group_file)
+        
+        addresses = []
+        
+        for row in wr:
+            addresses.append(row[0:3])
+        
+        for i in addresses:
+            
+            if i == addresses[-1]:
+                self.i0.insert(Tkinter.END, '{0}'.format(i[0]))
+                self.i1.insert(Tkinter.END, '{0}'.format(float(i[1])))
+                self.i2.insert(Tkinter.END, '{0}'.format(float(i[2])))
+                return
+            
+            self.i0.insert(Tkinter.END, '{0}\n'.format(i[0]))
+            self.i1.insert(Tkinter.END, '{0}\n'.format(float(i[1])))
+            self.i2.insert(Tkinter.END, '{0}\n'.format(float(i[2])))
+        
+        
     def add_pvs(self):
-
+        
         details = (self.i0.get(0.0, Tkinter.END), self.i1.get(0.0, Tkinter.END), self.i2.get(0.0, Tkinter.END), self.i4.get(), self.i5.get(), self.i3.get(), self.setting_mode.get())
         processed_details = [[], [], [], None, None, None, None] # This will contain PVs, lb, ub, lc, uc, delay, and setting_mode
-
+        
         for address in details[0].splitlines():
-            processed_details[0].append(address)
-
+            processed_details[0].append(str(address))
+        
         for lower,  upper in zip(details[1].splitlines(), details[2].splitlines()):
             processed_details[1].append(lower)
             processed_details[2].append(upper)
-
+        
         processed_details[3] = details[3]
         processed_details[4] = details[4]
-
+        
         processed_details[5] = details[5]
         processed_details[6] = details[6]
-
+        
         # Check that the data is all of the correct format
         good_data = True
         for i in range(len(processed_details[1])):
@@ -587,7 +621,7 @@ class add_bulk_pv(Tkinter.Frame):
             except:
                 tkMessageBox.showerror("Format error with lower bound", "The lower bound value for PV #{0}: \"{1}\", could not be converted to a float. Please check the values you have entered.".format(i+1, processed_details[1][i]))
                 good_data = False
-
+        
         for i in range(len(processed_details[2])):
             try:
                 if processed_details[6] in [0, 1]:
@@ -595,107 +629,102 @@ class add_bulk_pv(Tkinter.Frame):
             except:
                 tkMessageBox.showerror("Format error with upper bound", "The upper bound value for PV #{0}: \"{1}\", could not be converted to a float. Please check the values you have entered.".format(i+1, processed_details[2][i]))
                 good_data = False
-
+        
         try:
             if processed_details[6] == 2:
                 processed_details[3] = float(processed_details[3])
         except:
             tkMessageBox.showerror("Format error with lower change", "The lower change value: \"{0}\", could not be converted to a float. Please check the value you have entered.".format(processed_details[3]))
             good_data = False
-
+        
         try:
             if processed_details[6] == 2:
                 processed_details[4] = float(processed_details[4])
         except:
             tkMessageBox.showerror("Format error with upper change", "The upper change value: \"{0}\", could not be converted to a float. Please check the value you have entered.".format(processed_details[4]))
             good_data = False
-
+        
         try:
             processed_details[5] = float(processed_details[5])
         except:
             tkMessageBox.showerror("Format error with delay", "The delay value: \"{0}\", could not be converted to a float. Please check the value you have entered.".format(processed_details[5]))
             good_data = False
-
+        
         if good_data:
-
+            
             mpgr = mp_group_representation()
-
+            
             #mp_representations = []
-
+            
             for pv in processed_details[0]:
-                pv = pv.encode('ascii', 'ignore')
                 mpr = mp_representation()
                 mpr.mp_obj = util.dls_param_var(pv, processed_details[5])
                 mpr.mp_label = pv
-                print pv
                 #mp_representations.append(mpr)
                 mpgr.mp_representations.append(mpr)
             print "processed_details[0]: {0}".format(processed_details[0])
             print "mpgr to be added: {0}".format([i.mp_label for i in mpgr.mp_representations])
-            if useMachine:
-                temp_interactor = modified_interactor2(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
-            else:
-                temp_interactor = modified_interactor1(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
+            temp_interactor = modified_interactor(param_var_groups=[[i.mp_obj for i in mpgr.mp_representations]])
             initial_mps = temp_interactor.get_mp()
-
+            
             if processed_details[6] == 0:
                 # This means we are setting according to the bounds
-
+                
                 # Calculate relative from bounds
-
+                
                 a_min, a_max = util.find_group_a_bounds(processed_details[1], processed_details[2], initial_mps, True)
-
+                
                 mpgr.relative_setting = True
                 mpgr.ap_min = a_min
                 mpgr.ap_max = a_max
-
-
-
+                
+                
+            
             elif processed_details[6] == 1:
                 # This means we are setting according to the bounds
-
+                
                 # Calculate absolute from bounds
-
+                
                 a_min, a_max = util.find_group_a_bounds(processed_details[1], processed_details[2], initial_mps, False)
-
+                
                 mpgr.relative_setting = False
                 mpgr.ap_min = a_min
                 mpgr.ap_max = a_max
-
-
-
+                
+            
+            
             elif processed_details[6] == 2:
                 # This means we are setting according to the change, not the bounds
-
+                
                 # Calculate relative from change
-
+                
                 mpgr.relative_setting = True
                 mpgr.ap_min = processed_details[3]
                 mpgr.ap_max = processed_details[4]
-
+                
                 processed_details[1] = ["" for i in processed_details[0]]
                 processed_details[2] = ["" for i in processed_details[0]]
-
-
+            
+            
             parent_iid = the_main_window.Tinput_params.insert('', 'end', text=self.i6.get(), values=(mpgr.ap_min, mpgr.ap_max, processed_details[5]))
             mpgr.list_iid = parent_iid
-
+            
             for i, mpr in enumerate(mpgr.mp_representations):
                 print "ADDING"
                 iid = the_main_window.Tinput_params.insert(parent_iid, 'end', text=processed_details[0][i], values=(processed_details[1][i], processed_details[2][i], processed_details[5]))
                 mpr.list_iid = iid
-
-
+            
+            
             mpgr.ap_label = self.i6.get()
-
+            
             parameters.append(mpgr)
-
-
-
-
+            
+            
+            
+            
             add_bulk_pv_window.withdraw()
-
-
+            
+        
     def x_button(self):
         print "Sup"
         self.parent.withdraw()
