@@ -1,20 +1,23 @@
 '''
-
-Version 2*
-2016-07-27 16:00
-
+DLS-OnlineOptimiser with Injection Control: A flexible online optimisation package for use on the Diamond machine.
+Version 3
+@authors: David Obee, James Rogers.
 '''
 
 
 from __future__ import division
+print 'Welcome to DLS-OnlineOptimiser'
+print 'Loading...'
 
 import pkg_resources
 from audioop import avg
 pkg_resources.require('cothread')
 pkg_resources.require('matplotlib')
 pkg_resources.require('numpy')
+pkg_resources.require('scipy')
 
 import sys
+import csv
 import Tkinter
 import ttk
 import tkFileDialog
@@ -24,6 +27,7 @@ import time
 import datetime
 import imp
 import pickle
+import cothread
 
 import numpy
 import matplotlib
@@ -36,11 +40,18 @@ import dls_optimiser_util as util
 #import dls_optimiser_plot as plot
 import dls_optimiser_plot as plot
 
+
+def save_object(obj, filename):
+    with open(filename, 'wb') as output:
+        pickle.dump(obj, output)
+
+
 ''' Global variables and algorithm setup space '''
 #class my_interactor(util.dls_machine_interactor_base):
 #class my_interactor(util.kur_simulation_interactor_base):
 #    pass
 
+initial_settings = None
 
 class modified_interactor(util.dls_machine_interactor_bulk_base_inj_control):
     
@@ -105,8 +116,22 @@ class mr_representation:
 #mr_to_ar_mapping = []
 mr_to_ar_sign = []
 
+keepUpdating = True
+
+optimiserNames = ('Multi-Objective Particle Swarm Optimiser (MOPSO)',
+                  'Multi-Objective Simulated Annealing (MOSA)',
+                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)',
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)')
+
+optimiserFiles = {'Multi-Objective Particle Swarm Optimiser (MOPSO)': 'dlsoo_mopso.py',
+                  'Multi-Objective Simulated Annealing (MOSA)': 'dlsoo_mosa.py',
+                  'Multi-Objective Non-dominated Sorting Genetic Algorithm (NSGA-II)': 'dlsoo-nsga2.py',
+                  'Single-Objective Robust Conjugate Direction Search (RCDS)': 'dlsoo_rcds.py'}
+
 interactor = None
 optimiser = None
+signConverter = []
+Striptool_On = None
 
 mp_addresses = []
 mr_addresses = []
@@ -156,6 +181,9 @@ class main_window(Tkinter.Frame):
     def initUi(self):
         
         self.parent.title("DLS Machine Optimiser")
+        
+        self.striptool_on = Tkinter.IntVar()
+        self.striptool_on.set(0)
         
         self.parent.columnconfigure(0, weight=1)
         self.parent.columnconfigure(1, weight=1)
@@ -207,19 +235,21 @@ class main_window(Tkinter.Frame):
         
         ttk.Separator(self.parent, orient='horizontal').grid(row=5, column=0, columnspan=6, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
         
-        Tkinter.Label(self.parent, text="Algorithm file:").grid(row=6, column=0, sticky=Tkinter.E)
-        self.i_algo_address = Tkinter.Entry(self.parent)
-        self.i_algo_address.grid(row=6, column=1, columnspan=4, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
-        self.btn_browse_algo_address = Tkinter.Button(self.parent, text="Browse...", command=self.browse_optimiser_location)
-        self.btn_browse_algo_address.grid(row=6, column=5, sticky=Tkinter.E+Tkinter.W)
+        self.optimiserChoice = Tkinter.StringVar()
+        Tkinter.Label(self.parent, text="Algorithm:").grid(row=6, column=0, sticky=Tkinter.E)
+        self.algo = ttk.Combobox(self.parent, textvariable=self.optimiserChoice, values=optimiserNames)
+        self.algo.grid(row=6, column=1, columnspan=4, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
         
         ttk.Separator(self.parent, orient='horizontal').grid(row=7, column=0, columnspan=6, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
         
         self.btn_algo_settings = Tkinter.Button(self.parent, text="Next...", bg="red", command=self.next_button)
         self.btn_algo_settings.grid(row=8, column=5, sticky=Tkinter.E+Tkinter.W)
         
-        self.btn_debug_setup = Tkinter.Button(self.parent, text="Debug Setup*")
-        self.btn_debug_setup.grid(row=8, column=4, sticky=Tkinter.E+Tkinter.W)
+        self.r0 = Tkinter.Radiobutton(self.parent, text="Striptool Off (Recommended)", variable=self.striptool_on, value=0)
+        self.r0.grid(row=8, column=4, sticky=Tkinter.E+Tkinter.W)
+
+        self.r1 = Tkinter.Radiobutton(self.parent, text="Striptool On", variable=self.striptool_on, value=1)
+        self.r1.grid(row=8, column=3, sticky=Tkinter.E+Tkinter.W)
         
         self.btn_load_config = Tkinter.Button(self.parent, text="Load configuration", command=self.load_config)
         self.btn_load_config.grid(row=8, column=0, sticky=Tkinter.E+Tkinter.W)
@@ -230,20 +260,14 @@ class main_window(Tkinter.Frame):
     
     def browse_save_location(self):
         global store_address
+        current_time_string = datetime.datetime.fromtimestamp(time.time()).strftime('%d.%m.%Y_%H.%M.%S')
         store_directory = tkFileDialog.askdirectory()
         self.i_save_address.delete(0, 'end')
         self.i_save_address.insert(0, store_directory)
-        store_address = store_directory
-        print store_directory
-        
-    
-    def browse_optimiser_location(self):
-        global optimiser_wrapper_address
-        address = tkFileDialog.askopenfilename()
-        self.i_algo_address.delete(0, 'end')
-        self.i_algo_address.insert(0, address)
-        optimiser_wrapper_address = address
-        print address
+        store_address = '{0}/Optimisation@{1}'.format(store_directory, current_time_string)
+        if not os.path.exists(store_address):                                               #make save directory
+            os.makedirs(store_address)
+        print store_address
     
     def show_add_pv_window(self):
         add_pv_window.deiconify()
@@ -282,10 +306,14 @@ class main_window(Tkinter.Frame):
         
     
     def next_button(self):
+        global optimiser_wrapper_address
+        global Striptool_On
+        optimiser_wrapper_address = optimiserFiles[self.optimiserChoice.get()]
+        Striptool_On = self.striptool_on.get()
         add_obj_func_window.withdraw()
         add_pv_window.withdraw()
         add_bulk_pv_window.withdraw()
-        
+
         self.parent.withdraw()
         algorithm_settings_frame.load_algo_frame(optimiser_wrapper_address)
         algorithm_settings_frame.initUi()
@@ -479,54 +507,88 @@ class add_bulk_pv(Tkinter.Frame):
         self.i6 = Tkinter.Entry(self.parent)
         self.i6.grid(row=0, column=1, columnspan=2, sticky=Tkinter.W+Tkinter.E, pady=(10, 0), padx=(0, 10))
         
-        ttk.Separator(self.parent, orient='horizontal').grid(row=1, column=0, columnspan=3, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
+        Tkinter.Label(self.parent, text="Group file (optional):").grid(row=1, column=0, sticky=Tkinter.E)
+        self.i_file_address = Tkinter.Entry(self.parent)
+        self.i_file_address.grid(row=1, column=1, sticky=Tkinter.E+Tkinter.W+Tkinter.N+Tkinter.S)
+        self.btn_browse_file_address = Tkinter.Button(self.parent, text="Add group file...", command=self.browse_save_location)
+        self.btn_browse_file_address.grid(row=1, column=2, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self.parent, text="PV addresses:").grid(row=2, column=0, sticky=Tkinter.E+Tkinter.W)
-        Tkinter.Label(self.parent, text="Lower bounds:").grid(row=2, column=1, sticky=Tkinter.E+Tkinter.W)
-        Tkinter.Label(self.parent, text="Upper bounds:").grid(row=2, column=2, sticky=Tkinter.E+Tkinter.W)
+        ttk.Separator(self.parent, orient='horizontal').grid(row=2, column=0, columnspan=3, sticky=Tkinter.E+Tkinter.W, padx=10, pady=10)
+        
+        Tkinter.Label(self.parent, text="PV addresses:").grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+        Tkinter.Label(self.parent, text="Lower bounds:").grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        Tkinter.Label(self.parent, text="Upper bounds:").grid(row=3, column=2, sticky=Tkinter.E+Tkinter.W)
         
         self.i0 = Tkinter.Text(self.parent, width=40)
-        self.i0.grid(row=3, column=0, sticky=Tkinter.E+Tkinter.W)
+        self.i0.grid(row=4, column=0, sticky=Tkinter.E+Tkinter.W)
         self.i1 = Tkinter.Text(self.parent, width=40)
-        self.i1.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.i1.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
         self.i2 = Tkinter.Text(self.parent, width=40)
-        self.i2.grid(row=3, column=2, sticky=Tkinter.E+Tkinter.W)
+        self.i2.grid(row=4, column=2, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self.parent, text="Change:").grid(row=4, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self.parent, text="Change:").grid(row=5, column=0, sticky=Tkinter.E)
         
         self.i4 = Tkinter.Entry(self.parent)
-        self.i4.grid(row=4, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.i4.grid(row=5, column=1, sticky=Tkinter.E+Tkinter.W)
         
         self.i5 = Tkinter.Entry(self.parent)
-        self.i5.grid(row=4, column=2, sticky=Tkinter.E+Tkinter.W)
+        self.i5.grid(row=5, column=2, sticky=Tkinter.E+Tkinter.W)
         
-        Tkinter.Label(self.parent, text="Delay:").grid(row=5, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self.parent, text="Delay:").grid(row=6, column=0, sticky=Tkinter.E)
         self.i3 = Tkinter.Entry(self.parent)
-        self.i3.grid(row=5, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
+        self.i3.grid(row=6, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
         
         self.r0 = Tkinter.Radiobutton(self.parent, text="Relative from bounds", variable=self.setting_mode, value=0)
-        self.r0.grid(row=6, column=1)
+        self.r0.grid(row=7, column=1)
         
         self.r1 = Tkinter.Radiobutton(self.parent, text="Absolute from bounds", variable=self.setting_mode, value=1)
-        self.r1.grid(row=6, column=2)
+        self.r1.grid(row=7, column=2)
         
         self.r2 = Tkinter.Radiobutton(self.parent, text="Relative with change", variable=self.setting_mode, value=2)
-        self.r2.grid(row=6, column=0)
+        self.r2.grid(row=7, column=0)
         
         self.b0 = Tkinter.Button(self.parent, text="Cancel", command=self.parent.withdraw)
-        self.b0.grid(row=7, column=1, sticky=Tkinter.E+Tkinter.W)
+        self.b0.grid(row=8, column=1, sticky=Tkinter.E+Tkinter.W)
         
         self.b1 = Tkinter.Button(self.parent, text="Add", command=self.add_pvs)
-        self.b1.grid(row=7, column=2, sticky=Tkinter.E+Tkinter.W)
+        self.b1.grid(row=8, column=2, sticky=Tkinter.E+Tkinter.W)
         
-    
+    def browse_save_location(self):
+        store_directory = tkFileDialog.askopenfile()
+        self.i_file_address.delete(0, 'end')
+        self.i_file_address.insert(0, store_directory.name)
+        groupPV_address = store_directory
+        
+        print groupPV_address
+        
+        group_file = open(groupPV_address.name, 'r')
+        wr = csv.reader(group_file)
+        
+        addresses = []
+        
+        for row in wr:
+            addresses.append(row[0:3])
+        
+        for i in addresses:
+            
+            if i == addresses[-1]:
+                self.i0.insert(Tkinter.END, '{0}'.format(i[0]))
+                self.i1.insert(Tkinter.END, '{0}'.format(float(i[1])))
+                self.i2.insert(Tkinter.END, '{0}'.format(float(i[2])))
+                return
+            
+            self.i0.insert(Tkinter.END, '{0}\n'.format(i[0]))
+            self.i1.insert(Tkinter.END, '{0}\n'.format(float(i[1])))
+            self.i2.insert(Tkinter.END, '{0}\n'.format(float(i[2])))
+        
+        
     def add_pvs(self):
         
         details = (self.i0.get(0.0, Tkinter.END), self.i1.get(0.0, Tkinter.END), self.i2.get(0.0, Tkinter.END), self.i4.get(), self.i5.get(), self.i3.get(), self.setting_mode.get())
         processed_details = [[], [], [], None, None, None, None] # This will contain PVs, lb, ub, lc, uc, delay, and setting_mode
         
         for address in details[0].splitlines():
-            processed_details[0].append(address)
+            processed_details[0].append(str(address))
         
         for lower,  upper in zip(details[1].splitlines(), details[2].splitlines()):
             processed_details[1].append(lower)
@@ -740,141 +802,152 @@ class add_obj_func(Tkinter.Frame):
 
 
 class show_progress(Tkinter.Frame):
-    
+
     def __init__(self, parent):
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+
         #self.initUi()
-    
+
     def initUi(self):
+        global signConverter
+        global Striptool_On
         #redstyle = ttk.Style()
         #redstyle.theme_use("clam")
         #redstyle.configure("red.Horizontal.TProgressbar", foreground="red", background="red")
         self.parent.title("Optimising...")
-        
+
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=1)
-        
+
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=1)
         self.columnconfigure(3, weight=1)
-        
+
         self.pbar_progress = ttk.Progressbar(self.parent, length=400, variable=progress)
         self.pbar_progress.grid(row=0, column=0, columnspan=4, padx=10, pady=10)
         #self.pbar_progress.pack()
         
-        self.strip_plot = strip_plot(self.parent)
-        self.strip_plot.grid(row=2, column=0, columnspan=4)
-        
+        if Striptool_On == 1:
+            self.strip_plot = strip_plot(self.parent)
+            self.strip_plot.grid(row=2, column=0, columnspan=4)
+
         #self.lbl_percentage = Tkinter.Label(self.parent, text="0%")
         #self.lbl_percentage.grid(row=1, column=0)
-        self.btn_cancel = Tkinter.Button(self.parent, text="Cancel")
+        self.btn_cancel = Tkinter.Button(self.parent, text="Cancel", command=self.cancelMethod)
         self.btn_cancel.grid(row=1, column=3, sticky=Tkinter.W+Tkinter.E)
         #self.btn_cancel.pack()
-        
+
         self.btn_pause = Tkinter.Button(self.parent, text="Pause", command=self.pause_algo)
         self.btn_pause.grid(row=1, column=2, sticky=Tkinter.E+Tkinter.W)
-        
+
         # This part will display the latest plot
-        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent)
+        ar_labels = [mrr.ar_label for mrr in results]
+        self.progress_plot = optimiser_wrapper.import_algo_prog_plot(self.parent, ar_labels, signConverter)
         self.progress_plot.grid(row=3, column=0, columnspan=4)
         print "UI INIT"
-        
+
         #self.toolbar = NavigationToolbar2TkAgg(self.canvas, self.parent)
         #self.toolbar.update()
         #self.canvas._tkcanvas.pack(side=Tkinter.TOP, fill=Tkinter.BOTH, expand=True)
-        
-        
-        
-    
+
+
+
+
     def handle_progress(self, normalised_percentage, generation):
+        global Striptool_On
         #self.pbar_progress.step(1/max_gen * 100)
         #root.update()
-        
+
         #if generation >= 1:
             #plot.intermediate_plot("{0}/fronts.{1}".format(the_main_window.i_save_address.get(), generation-1))
-        print normalised_percentage
+
         progress.set(normalised_percentage * 100)
         progress_frame.update()
-        
-        
+        #print 'testing'
+        if Striptool_On == 1:
+            self.strip_plot.update()
+
         self.progress_plot.update()
-        
-    
+
+
     def pause_algo(self):
         print "This works"
         global optimiser
         optimiser.pause = not optimiser.pause
-        
+
         if optimiser.pause:
             self.btn_pause.config(text="Unpause")
             self.parent.config(background="red")
         else:
             self.btn_pause.config(text="Pause")
             self.parent.config(background="#d9d9d9")
-    
-    
+
+    def cancelMethod(self):
+        optimiser.cancel = True
+
 
 class plot_progress(Tkinter.Frame):
-    
+
     def __init__(self, parent):
-        
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+
         self.initUi()
-    
+
     def initUi(self):
-        
+
         self.fig = Figure(figsize=(5, 5), dpi=100)
         self.a = self.fig.add_subplot(111)
-        
+
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.show()
         self.canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
+
 
 class strip_plot(Tkinter.Frame):
-    
+
     def __init__(self, parent):
-        
+
         Tkinter.Frame.__init__(self, parent)
-        
+
         self.parent = parent
-        
+
         self.initUi()
-    
+
     def initUi(self):
         global interactor
         self.interactor = interactor
-        data_sets = []
-        time_sets = []
-        
+        self.data_sets = []
+        self.time_sets = []
+        self.initTime = time.time()
+
         self.fig = Figure(figsize=(5, 1), dpi=100)
         self.a = self.fig.add_subplot(111)
-        
+
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.show()
         self.canvas.get_tk_widget().pack(side=Tkinter.BOTTOM, fill=Tkinter.BOTH, expand=True)
-        
+
     def update(self):
-        
+
         mps = self.interactor.get_mp()
         mrs = []
         for i in self.interactor.measurement_vars:
             mrs.append(self.interactor.get_pv(i.pv))
-        
-        new_data = mps + mrs
-        
-        
-    
-    
 
+        new_data = mrs + mps
+        self.data_sets.append(new_data)
+        self.time_sets.append(time.time() - self.initTime)
+
+        plot.plot_strip_tool(self.a, self.data_sets, self.time_sets)
+        self.canvas.show()
+        
 class point_details(Tkinter.Frame):
     
     def __init__(self, parent):
@@ -897,65 +970,68 @@ class point_details(Tkinter.Frame):
     
     def generateUi(self, ars, aps):
         
+        global signConverter
+
         ''' First, unpickle the mp_to_ap mapping file '''
-        
+
         mapping_file = open("{0}/ap_to_mp_mapping_file.txt".format(store_address))
         mp_to_ap_mapping = pickle.load(mapping_file)
         mapping_file.close()
-        
+
         ''' Now get the mp values '''
-        
+
         mps = mp_to_ap_mapping[aps]
-        print mp_to_ap_mapping[aps]
-        
+        self.mps = mps
+
         ''' Now make UI '''
-        
+
         Tkinter.Label(self.parent, text="Machine").grid(row=0, column=1, sticky=Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S)
         Tkinter.Label(self.parent, text="Algorithm").grid(row=0, column=2, sticky=Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S)
         Tkinter.Label(self.parent, text="Parameters").grid(row=1, column=0, sticky=Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S)
         Tkinter.Label(self.parent, text="Results").grid(row=2, column=0, sticky=Tkinter.W+Tkinter.E+Tkinter.N+Tkinter.S)
-        
+
         tree_mp = ttk.Treeview(self.parent, columns=("value"))
         tree_mp.column("value", width=200)
         tree_mp.heading("value", text="Value")
         tree_mp.grid(row=1, column=1)
-        
+
         tree_mr = ttk.Treeview(self.parent, columns=("value"))
         tree_mr.column("value", width=200)
         tree_mr.heading("value", text="Value")
         tree_mr.grid(row=2, column=1)
-        
+
         tree_ap = ttk.Treeview(self.parent, columns=("value"))
         tree_ap.column("value", width=200)
         tree_ap.heading("value", text="Value")
         tree_ap.grid(row=1, column=2)
-        
+
         tree_ar = ttk.Treeview(self.parent, columns=("value"))
         tree_ar.column("value", width=200)
         tree_ar.heading("value", text="Value")
         tree_ar.grid(row=2, column=2)
-        
-        btn_set = Tkinter.Button(self.parent, text="Set")
+
+        btn_set = Tkinter.Button(self.parent, text="Set", command=self.set_state)
         btn_set.grid(row=3, column=2, sticky=Tkinter.W+Tkinter.E, pady=10)
-        
+
         for i, ap in enumerate(aps):
             tree_ap.insert('', 'end', text=parameters[i].ap_label, values=(ap))
-        
+
         for i, ar in enumerate(ars):
-            tree_ar.insert('', 'end', text=results[i].ar_label, values=(ar))
-        
+            tree_ar.insert('', 'end', text=results[i].ar_label, values=(signConverter[i]*ar))
+
         mp_labels = []
         for mpgr in parameters:
             for mpr in mpgr.mp_representations:
                 mp_labels.append(mpr.mp_label)
         for i, mp in enumerate(mps):
             tree_mp.insert('', 'end', text=mp_labels[i], values=(mp))
-        
+
         self.parent.deiconify()
-    
-    def set_state(self, mps):
-        the_interactor.set_mp()
-    
+
+    def set_state(self):
+
+        interactor.set_mp(self.mps)
+
     def x_button(self):
         print "Sup"
         self.parent.withdraw()
@@ -978,7 +1054,7 @@ class algorithm_settings(Tkinter.Frame):
         
         ttk.Separator(self.parent, orient="horizontal").grid(row=1, pady=10, padx=10, sticky=Tkinter.E+Tkinter.W, columnspan=2)
         
-        b0 = Tkinter.Button(self.parent, text="Next...", command=self.set_settings)
+        b0 = Tkinter.Button(self.parent, text="Start...", bg="red", command=self.set_settings)
         b0.grid(row=2, column=1, sticky=Tkinter.E+Tkinter.W)
         
     
@@ -995,53 +1071,61 @@ class algorithm_settings(Tkinter.Frame):
         global interactor
         global parameters
         global results
+        global signConverter
         algo_settings_dict = self.algo_frame.get_dict()
         
         if algo_settings_dict == "error":
             tkMessageBox.showerror("Algorithm settings error", "There was an error in one or more of the settings given. The optimisation procedure will not proceed.")
         else:
-            mp_addresses = [[mpr.mp_obj for mpr in mpgr.mp_representations] for mpgr in parameters]
+            userContinue = tkMessageBox.askyesno(title='READY?', message='You are using the MACHINE. ' + 'Are you sure you wish to start optimisation?', icon=tkMessageBox.WARNING)
             
-            ''' Sort mr_address by non-injection and injection '''
+            if userContinue:
+                
+            
+                mp_addresses = [[mpr.mp_obj for mpr in mpgr.mp_representations] for mpgr in parameters]
+            
+                ''' Sort mr_address by non-injection and injection '''
             #mr_addresses = [mrr.mr_obj for mrr in results]
-            mr_addresses_noinj = []
-            mr_addresses_inj = []
+                mr_addresses_noinj = []
+                mr_addresses_inj = []
             
-            for i in results:
-                if i.inj_setting == 0:
-                    mr_addresses_noinj.append(i.mr_obj)
-                elif i.inj_setting == 1:
-                    mr_addresses_inj.append(i.mr_obj)
+                for i in results:
+                    if i.inj_setting == 0:
+                        mr_addresses_noinj.append(i.mr_obj)
+                    elif i.inj_setting == 1:
+                        mr_addresses_inj.append(i.mr_obj)
             
-            temp_results = []
-            for i in results:
-                if i.inj_setting == 0:
-                    temp_results.append(i)
+                temp_results = []
+                for i in results:
+                    if i.inj_setting == 0:
+                        temp_results.append(i)
             
-            for i in results:
-                if i.inj_setting == 1:
-                    temp_results.append(i)
-            results = temp_results
+                for i in results:
+                    if i.inj_setting == 1:
+                        temp_results.append(i)
+                results = temp_results
             
-            relative_settings = [mpgr.relative_setting for mpgr in parameters]
-            ap_min_var = [mpgr.ap_min for mpgr in parameters]
-            ap_max_var = [mpgr.ap_max for mpgr in parameters]
-            interactor = modified_interactor(mp_addresses, mr_addresses_noinj, mr_addresses_inj, set_relative=relative_settings)
-            
-            #ap_min_var, ap_max_var = interactor.find_a_bounds(mp_min_var, mp_max_var)
-            #print ap_min_var
-            #print ap_max_var
-            initial_mp = interactor.get_mp()
-            #print mr_addresses
-            optimiser = optimiser_wrapper.optimiser(settings_dict=algo_settings_dict,
+                relative_settings = [mpgr.relative_setting for mpgr in parameters]
+                ap_min_var = [mpgr.ap_min for mpgr in parameters]
+                ap_max_var = [mpgr.ap_max for mpgr in parameters]
+                interactor = modified_interactor(mp_addresses, mr_addresses_noinj, mr_addresses_inj, set_relative=relative_settings)
+                
+                save_object(interactor, '{0}/interactor'.format(store_address))
+                
+                #ap_min_var, ap_max_var = interactor.find_a_bounds(mp_min_var, mp_max_var)
+                #print ap_min_var
+                #print ap_max_var
+                initial_mp = interactor.get_mp()
+                #print mr_addresses
+                optimiser = optimiser_wrapper.optimiser(settings_dict=algo_settings_dict,
                                                     interactor=interactor,
                                                     store_location=store_address,
                                                     a_min_var=ap_min_var,
                                                     a_max_var=ap_max_var,
                                                     progress_handler=progress_frame.handle_progress) # Still need to add the individuals, and the progress handler
             
-            self.parent.withdraw()
-            run_optimisation()
+                self.parent.withdraw()
+                run_optimisation()
     
 
 
@@ -1078,48 +1162,78 @@ def save_details_files(start_time, end_time):
 
 def run_optimisation():
     global final_plot_frame
+    global initial_settings
     print "Lets go!"
-    
     #print mp_labels
     #print ap_labels
     #print mr_labels
     #print mr_labels
     #time.sleep(100)
-    
+
     progress_frame.initUi()
     algorithm_settings_window.withdraw()
-    
+
     initial_settings = interactor.get_mp()
-    
+
     progress_window.deiconify()
     progress_window.grab_set()
+    cothread.Spawn(optimiserThreadMethod)
     
+    
+    
+def optimiserThreadMethod():
+    global signConverter
+    global final_plot_frame
+    global optimiser
+    global parameters
+    global results
+    global store_address
+    global keepUpdating
+    
+    if not os.path.exists('{0}/FRONTS'.format(store_address)):
+        os.makedirs('{0}/FRONTS'.format(store_address))
+        
     start_time = time.time()
+
     optimiser.optimise()
-    
-    
+    #print results
+    keepUpdating = False
+
     end_time = time.time()
-    
+
     interactor.set_mp(initial_settings)
     save_details_files(datetime.datetime.fromtimestamp(start_time), datetime.datetime.fromtimestamp(end_time))
+    
+    if not os.path.exists('{0}/PARAMETERS'.format(store_address)):
+        os.makedirs('{0}/PARAMETERS'.format(store_address))
+        
+    if not os.path.exists('{0}/RESULTS'.format(store_address)):
+        os.makedirs('{0}/RESULTS'.format(store_address))
+        
+    for i in range(len(parameters)):
+        save_object(parameters[i], '{0}/PARAMETERS/parameter_{1}'.format(store_address, i))
+    for i in range(len(results)):
+        save_object(results[i], '{0}/RESULTS/result_{1}'.format(store_address, i))
+    
+    
+    
+    signConverter_file = open("{0}/signConverter.txt".format(store_address), 'w')
+    signConverter_file.write(str(signConverter))
+    signConverter_file.close()
     
     ap_to_mp_mapping_file = open("{0}/ap_to_mp_mapping_file.txt".format(store_address), 'w')
     ap_to_mp_mapping_file.write(interactor.string_ap_to_mp_store())
     ap_to_mp_mapping_file.close()
-    
+
     ''' By this point, the algorithm has finished the optimisation, and restored the machine '''
-    
+
     progress_window.grab_release()
     progress_window.withdraw()
-    
+
     ar_labels = [mrr.ar_label for mrr in results]
-    final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels)
+    final_plot_frame = optimiser_wrapper.import_algo_final_plot(final_plot_window, point_frame.generateUi, ar_labels, signConverter)
     final_plot_frame.initUi()
-    final_plot_window.deiconify()
-    
-    
-    
-    
+    final_plot_window.deiconify()    
 
 
 
@@ -1131,6 +1245,11 @@ def run_optimisation():
 
 root = Tkinter.Tk()
 root.title("DLS Online Optimiser")
+
+def yielder():
+    cothread.Yield()
+    root.after(100, yielder)
+root.after(100, yielder)
 
 progress = Tkinter.DoubleVar()
 progress.set(0.00)
@@ -1172,10 +1291,13 @@ algorithm_settings_window.withdraw()
 #algorithm_settings_frame.load_algo_frame("/dls/physics/students/zex19517/main_implementations/GUI/update_20160805/test_algo_module.py")
 #algorithm_settings_frame.initUi()
 
-
+def ticker():
+    while True:
+        #print 'tick'
+        cothread.Sleep(5)
 
 root.mainloop()
-
+cothread.WaitForQuit()
 
 
 
