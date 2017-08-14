@@ -316,7 +316,7 @@ class optimiser:
 
     def dumpProgress(self):
         #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
-        f = file("{0}/fronts.{1}".format(self.store_location, completed_generation), "w")
+        f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, completed_generation), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
         for i in self.progressTracker:
@@ -330,7 +330,7 @@ class optimiser:
         #when the optimsation is finished this is called in order to save the settings of the algorithm.
         file_return = ''
 
-        file_return += 'dlsoo_RCDS.py\n'
+        file_return += 'dlsoo_rcds.py algorithm\n'
         file_return += '===================\n\n'
         file_return += 'Number of iterations: {0}\n'.format(self.nOIterations)
 
@@ -561,7 +561,6 @@ class import_algo_final_plot(Tkinter.Frame):
         self.axis_labels = ['Number of directions searched', axis_labels[0]]
         if post_analysis_store_address is not None:
             store_address = post_analysis_store_address
-        #self.initUi()
 
     def initUi(self):
         global store_address
