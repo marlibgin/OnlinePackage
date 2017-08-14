@@ -180,7 +180,7 @@ class optimiser:
 
     def dumpFront(self):
         #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
-        f = file("{0}/fronts.{1}".format(self.store_location, completed_generation), "w")
+        f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, completed_generation), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
         for i in range(len(self.domFrontObjectives)):
@@ -201,7 +201,7 @@ class optimiser:
 
         file_return += 'Parameter count: {0}\n'.format(self.paramCount)
         file_return += 'Objective count: {0}\n'.format(self.objCount)
-        file_return += 'Output temperture drop: {0}\n'.format(self.passOutTempDrop)
+        file_return += 'Output temperature drop: {0}\n'.format(self.passOutTempDrop)
         file_return += 'Minimum parameters: {0}\n'.format(self.down)
         file_return += 'Maximum parameters: {0}\n'.format(self.up)
         file_return += 'Fail drop count: {0}\n'.format(self.failDropCount)
@@ -221,7 +221,7 @@ class optimiser:
         objCall = 0
         #this variable is used to keep track of the number of times we have evaluted the objectives.
         collectivePointCount = 0
-        #this varaible is used to keep track of progress
+        #this variable is used to keep track of progress
         if self.initParams == []:
             self.setUnifRanPoints()
         else:
@@ -444,11 +444,11 @@ class import_algo_prog_plot(Tkinter.Frame):
 
     def update(self):
         global store_address
-        global completed_iteration
+        global completed_generation
         self.a.clear()
         file_names = []
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i+1))
 
         plot.plot_pareto_fronts(file_names, self.a, self.axis_labels, self.signConverter)
 
@@ -457,7 +457,9 @@ class import_algo_prog_plot(Tkinter.Frame):
 
 class import_algo_final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, pick_handler, axis_labels, signConverter):
+    def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address = None):
+        
+        global store_address
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
@@ -465,6 +467,10 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
+        
+        if post_analysis_store_address is not None:
+            store_address = post_analysis_store_address
+        
         #self.initUi()
 
     def initUi(self):
@@ -479,7 +485,7 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
-
+        
         self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
 
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
@@ -495,7 +501,9 @@ class import_algo_final_plot(Tkinter.Frame):
         self.parent.rowconfigure(0, weight=1)
 
     def on_pick(self, event):
-        global completed_generation
+        
+        global store_address
+        completed_generation = len(os.listdir('{0}/FRONTS'.format(store_address)))
         # Lookup ap values
         my_artist = event.artist
         x_data = my_artist.get_xdata()
@@ -510,7 +518,7 @@ class import_algo_final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen'])
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i+1))
 
 
         fs = []
@@ -545,20 +553,19 @@ class import_algo_final_plot(Tkinter.Frame):
 
 class final_plot(Tkinter.Frame):
 
-    def __init__(self, parent, axis_labels, signConverter, post_analysis_store_address=None):
-        global store_address
+    def __init__(self, parent, axis_labels, signConverter):
+
         Tkinter.Frame.__init__(self, parent)
 
         self.parent = parent
         self.signConverter = signConverter
         self.axis_labels = axis_labels
-        if post_analysis_store_address is not None:
-            store_address = post_analysis_store_address
+
         self.initUi()
 
     def initUi(self):
         global store_address
-        global completed_generation
+        completed_generation = len(os.listdir('{0}/FRONTS'.format(store_address)))
 
         for widget in self.winfo_children():
             widget.destroy()
@@ -571,7 +578,9 @@ class final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i+1))
+            
+        print 'file names', file_names
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
 
