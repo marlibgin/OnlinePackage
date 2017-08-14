@@ -516,10 +516,10 @@ class import_algo_frame(Tkinter.Frame):
         Tkinter.Label(self, text="Recommended:\nSwarm Size: 50\nMax. Iterations: 5\nParticle Inertia: 0.4\nSocial Parameter: 2.0\nCognitive Parameter: 2.0", justify=Tkinter.LEFT).grid(row=6, column=0, columnspan=2, sticky=Tkinter.W)
         
         self.i0.insert(0, "50")
-        self.i1.insert(0, "5")
-        self.i2.insert(0, "0.4")
+        self.i1.insert(0, "40")
+        self.i2.insert(0, "0.5")
         self.i3.insert(0, "2.0")
-        self.i4.insert(0, "2.0")
+        self.i4.insert(0, "1.5")
 #         self.i5.insert(0, "3")
 #         self.i6.insert(0, "2")
         
