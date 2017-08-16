@@ -39,6 +39,7 @@ import matplotlib.cm as cm
 import dls_optimiser_util as util
 #import dls_optimiser_plot as plot
 import dls_optimiser_plot as plot
+import ca_abstraction_mapping as map
 
 
 def save_object(obj, filename):
@@ -150,6 +151,8 @@ optimiser_wrapper = None
 store_address = None
 
 algo_settings_dict = None
+
+lifetime_options_completed = False
 
 mp_labels = []
 mr_labels = []
@@ -277,6 +280,8 @@ class main_window(Tkinter.Frame):
     
     def show_add_obj_func_window(self):
         add_obj_func_window.deiconify()
+        
+    
     
     def remove_pv(self):
         
@@ -720,12 +725,14 @@ class add_bulk_pv(Tkinter.Frame):
 
 class add_obj_func(Tkinter.Frame):
     
-    def __init__(self, parent):
+    def __init__(self, parent, lifetime_options_window):
         print "INIT"
         Tkinter.Frame.__init__(self, parent)
         
         self.parent = parent
         self.parent.protocol('WM_DELETE_WINDOW', self.x_button)
+        
+        self.lifetime_options = lifetime_options_window
         
         self.initUi()
     
@@ -736,7 +743,7 @@ class add_obj_func(Tkinter.Frame):
         self.max_min_setting.set(0)
         
         self.inj_setting = Tkinter.IntVar()
-        self.inj_setting.set(0) # 0 means don't inject, 1 means injext
+        self.inj_setting.set(0) # 0 means don't inject, 1 means inject
         
         Tkinter.Label(self.parent, text="PV address:").grid(row=0, column=0, sticky=Tkinter.E)
         self.i0 = Tkinter.Entry(self.parent)
@@ -771,6 +778,9 @@ class add_obj_func(Tkinter.Frame):
         mrr = mr_representation()
         mrr.mr_obj = util.dls_measurement_var(self.i0.get(), float(self.i1.get()), float(self.i2.get()))
         
+        if self.i0.get() == 'lifetime_proxy':
+            self.show_lifetime_options_window()
+        
         if self.max_min_setting.get() == 0:
             mrr.max_min_text = "Minimise"
             mrr.max_min_sign = "+"
@@ -793,14 +803,63 @@ class add_obj_func(Tkinter.Frame):
         
         results.append(mrr)
         
+        add_lifetime_options_window.withdraw()        
         add_obj_func_window.withdraw()
     
+    def show_lifetime_options_window(self):
+        add_lifetime_options_window.deiconify()
+
     def x_button(self):
         print "Sup"
         self.parent.withdraw()
     
+    
+    
+class lifetime_options(Tkinter.Frame):
 
-
+        def __init__(self, parent):
+            print "INIT"
+            Tkinter.Frame.__init__(self, parent)
+        
+            self.parent = parent
+            self.parent.protocol('WM_DELETE_WINDOW', self.x_button)
+        
+            self.initUi()
+        
+        def initUi(self):
+            self.parent.title("Lifetime Proxy Options")
+        
+            Tkinter.Label(self.parent, text="Bunch Number:").grid(row=0, column=0, sticky=Tkinter.E)
+            self.i0 = Tkinter.Entry(self.parent)
+            self.i0.grid(row=0, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
+        
+            Tkinter.Label(self.parent, text="Min. Beam Current:").grid(row=1, column=0, sticky=Tkinter.E)
+            self.i1 = Tkinter.Entry(self.parent)
+            self.i1.grid(row=1, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
+        
+            Tkinter.Label(self.parent, text="Max. Beam Current").grid(row=2, column=0, sticky=Tkinter.E)
+            self.i2 = Tkinter.Entry(self.parent)
+            self.i2.grid(row=2, column=1, columnspan=2, sticky=Tkinter.E+Tkinter.W)
+        
+            self.b1 = Tkinter.Button(self.parent, text="Cancel", command=add_lifetime_options_window.withdraw)
+            self.b1.grid(row=3, column=1, sticky=Tkinter.E+Tkinter.W)
+            self.b2 = Tkinter.Button(self.parent, text="OK", command=self.change_lifetime_options)
+            self.b2.grid(row=3, column=2, sticky=Tkinter.E+Tkinter.W)
+            
+        def change_lifetime_options(self):
+            
+            bunch_number = self.i0.get()
+            beam_current_min = self.i1.get()
+            beam_current_max = self.i2.get()
+            
+            map.define_bunch_number(bunch_number)
+            
+            
+        def x_button(self):
+            print "Sup"
+            self.parent.withdraw()
+        
+        
 class show_progress(Tkinter.Frame):
 
     def __init__(self, parent):
@@ -1263,9 +1322,14 @@ add_pv_frame = add_pv(add_pv_window)
 add_pv_window.withdraw()
 #print add_pv_window.cget("bg")
 
+# The dialog for changing lifetime options
+add_lifetime_options_window = Tkinter.Toplevel(root)
+add_lifetine_options_frame = lifetime_options(add_lifetime_options_window)
+add_lifetime_options_window.withdraw()
+
 # The dialog for adding objective functions
 add_obj_func_window = Tkinter.Toplevel(root)
-add_obj_func_frame = add_obj_func(add_obj_func_window)
+add_obj_func_frame = add_obj_func(add_obj_func_window, add_lifetine_options_frame)
 add_obj_func_window.withdraw()
 
 # The dialog showing calculation progress
