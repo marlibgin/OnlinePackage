@@ -328,15 +328,15 @@ class import_algo_frame(Tkinter.Frame):
         self.add_current_to_individuals = Tkinter.BooleanVar(self)
         self.add_current_to_individuals.set(True)
 
-        Tkinter.Label(self, text='Input temperture drops:').grid(row=2, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Input temperature drops:').grid(row=2, column=0, sticky=Tkinter.E)
         self.i2 = Tkinter.Entry(self)
         self.i2.grid(row=2,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Objectives temperture drops:').grid(row=3, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Objectives temperature drops:').grid(row=3, column=0, sticky=Tkinter.E)
         self.i3 = Tkinter.Entry(self)
         self.i3.grid(row=3,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Number of aneals:').grid(row=4, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Number of anneals:').grid(row=4, column=0, sticky=Tkinter.E)
         self.i4 = Tkinter.Entry(self)
         self.i4.grid(row=4,column=1, sticky=Tkinter.E + Tkinter.W)
 
@@ -352,7 +352,7 @@ class import_algo_frame(Tkinter.Frame):
         self.i7 = Tkinter.Entry(self)
         self.i7.grid(row=7,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Number of aneals between plotting front:').grid(row=8, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Number of anneals between plotting front:').grid(row=8, column=0, sticky=Tkinter.E)
         self.i8 = Tkinter.Entry(self)
         self.i8.grid(row=8, column=1, sticky=Tkinter.E + Tkinter.W)
 

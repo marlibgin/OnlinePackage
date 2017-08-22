@@ -421,7 +421,7 @@ class import_algo_frame(Tkinter.Frame):
         self.i4 = Tkinter.Entry(self)
         self.i4.grid(row=4,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Line search initial step (in normalised peramter space):').grid(row=5, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Line search initial step (in normalised parameter space):').grid(row=5, column=0, sticky=Tkinter.E)
         self.i5 = Tkinter.Entry(self)
         self.i5.grid(row=5,column=1, sticky=Tkinter.E + Tkinter.W)
 
@@ -435,7 +435,7 @@ class import_algo_frame(Tkinter.Frame):
         self.dirButton = Tkinter.Button(self, text='Give Directions', command=self.askNum)
         self.dirButton.grid(row=11, column=0)
 
-        Tkinter.Label(self, text="Recommendations:\n Consult doccumentation for the MATLAB version of RCDS.", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommendations:\nConsult documentation for the MATLAB version of RCDS.", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
 
         self.i2.insert(0, '10')
         self.i3.insert(0, '0')
@@ -537,7 +537,7 @@ class import_algo_prog_plot(Tkinter.Frame):
         self.b.clear()
         file_names = []
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i + 1))
 
         plot.plot_pareto_fronts(file_names, self.a, self.axis_labels, self.signConverter)
         if not (searchPlotData == []):
@@ -565,7 +565,7 @@ class import_algo_final_plot(Tkinter.Frame):
     def initUi(self):
         global store_address
 
-        self.parent.title("MOPSO results")
+        self.parent.title("MOSA results")
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=0)
@@ -604,7 +604,7 @@ class import_algo_final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen'])
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i + 1))
 
 
         fs = []
@@ -663,7 +663,7 @@ class final_plot(Tkinter.Frame):
         file_names = []
         #for i in range(algo_settings_dict['max_gen']):
         for i in range(completed_generation):
-            file_names.append("{0}/fronts.{1}".format(store_address, i + 1))
+            file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i + 1))
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
 
