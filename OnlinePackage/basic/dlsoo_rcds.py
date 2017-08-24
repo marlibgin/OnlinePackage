@@ -37,10 +37,15 @@ userInputDirections = []
 searchPlotData = []
 
 def nothing_function(x,y):
+    '''
+    used to deal with progress handling when no progress_handler is specified
+    '''
     pass
 
-def createSearchDir(i,j, len1):
-    #create a column vector with the ith and the jth elemet = 1 and the rest = 0
+def createSearchDir(i, j, len1):
+    '''
+    create a column vector with the ith and the jth elemet = 1 and the rest = 0
+    '''
     dir = []
     for k in range(len1):
         if k == i or k == j:
@@ -50,15 +55,23 @@ def createSearchDir(i,j, len1):
     return dir
 
 def unNormalise(x, down, up):
+    '''
+    Takes a set of parameters normalised to the unit cube and converts them back to the actual parameters.
+    '''
     x1 = [down[i] + x[i]*(up[i] - down[i]) for i in range(len(x))]
     return x1
 
 def vecNormalise(x):
-    #normalise a column vector x
+    '''
+    normalise a column vector x
+    '''
     vecNorm = sum([i^2 for i in x])**0.5
     x = [i/vecNorm for i in x]
 
 def removeOutliers(differenceList):
+    '''
+    Removes the outliers for the quadratic fit.
+    '''
     mul_tol = 3
     perlim = 0.25
     y = sorted(differenceList)
@@ -82,17 +95,20 @@ def removeOutliers(differenceList):
 
 
 class optimiser:
+    '''
+    This is the class that handles the actual operation of the optimiser.
+    '''
     def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, individuals=None, progress_handler=None):
-        self.interactor = interactor
-        self.searchDirections = settings_dict['searchDirections']
-        self.paramCount = len(interactor.param_var_groups)
-        self.initStep = settings_dict['initStep']
-        self.objCallStop = settings_dict['objCallStop']
-        self.tolerance = settings_dict['tolerance']
-        self.nOIterations = settings_dict['nOIterations']
-        self.numTestPoints = settings_dict['numTestPoints']
-        self.down = a_min_var
-        self.up = a_max_var
+        self.interactor = interactor                                #allows the algorithm to obtain the objectives.
+        self.searchDirections = settings_dict['searchDirections']   #Defines the inital search directions in normalised parameter space.
+        self.paramCount = len(interactor.param_var_groups)          #Keeps track of the number of parameters
+        self.initStep = settings_dict['initStep']                   #The inital step in the bracketing process.
+        self.objCallStop = settings_dict['objCallStop']             #This is the maximum number of measurements that can take place.
+        self.tolerance = settings_dict['tolerance']                 #This is the finishing tolerance.
+        self.nOIterations = settings_dict['nOIterations']           #This is the number of times RCDS will be iterated.
+        self.numTestPoints = settings_dict['numTestPoints']         #This defines the number of points sampled in the bracketing region in order to fit the parabola.
+        self.down = a_min_var                                       #The lower bounds on the parameters.
+        self.up = a_max_var                                         #The upper bounds on the parameters.
         if not type(self.up) == type([]):
             self.up = [self.up]
             self.down = [self.down]
@@ -100,12 +116,12 @@ class optimiser:
             self.progress_handler = nothing_function
         else:
             self.progress_handler = progress_handler
-        self.progressTracker = []
-        self.store_location = store_location
-        self.numFuncEval = 0
-        self.numDirSearched = 0
-        self.pause = False
-        self.cancel = False
+        self.progressTracker = []                                   #keeps track of the objective and parameters after every search direction.
+        self.store_location = store_location                        #Where the progress data is stroed.
+        self.numFuncEval = 0                                        #keeps track of how many times the objective was called.
+        self.numDirSearched = 0                                     #Keeps track of now many directions have been searched.
+        self.pause = False                                          #used to pause the algorithm.
+        self.cancel = False                                         #used to cancel the opimiser.
         #if now perameters specified use random
         if settings_dict['add_current_to_individuals']:
             self.initParams = interactor.get_ap()
@@ -113,10 +129,16 @@ class optimiser:
             self.initParams = [random.uniform(self.down[i], self.up[i]) for i in range(self.paramCount)]
 
     def getParams(self):
+        '''
+        Takes the point in normalised parameter space and converts to parameters.
+        '''
         params = [self.down[i] + self.normParam[i]*(self.up[i] - self.down[i]) for i in range(self.paramCount)]
         return params
 
     def getObjective(self):
+        '''
+        Allows the agorithm to evaluate the objective.
+        '''
         params = self.getParams()
         #first we must set the machine to the desired parameter values
         self.interactor.set_ap(params)
@@ -130,10 +152,13 @@ class optimiser:
         return (f, unc)
 
     def bracketMin(self, initialVec, initFunc, searchDirection):
+        '''
+        Performs the braceting process for line optimisation.
+        '''
         global goldenRatio
         vecFuncStore = []
         vecFuncStore.append([initialVec, initFunc, 0])
-        g_noise = initFunc[1]
+        g_noise = initFunc[1] #keeps track of the noise level.
         funcMin = initFunc
         vecMin = initialVec
         alphaMin = 0
@@ -212,6 +237,9 @@ class optimiser:
         return (vecMin, funcMin, alpha1, alpha2, vecFuncStore)
 
     def findMinimum(self, alpha1, alpha2, searchDirection, initialVec, initFunc, vecFuncStore):
+        '''
+        Samples the bracketed region and fits the parabola accordingly.
+        '''
         global searchPlotData
         searchPlotData = []
         #perform a line search
@@ -273,6 +301,9 @@ class optimiser:
             return min(vecFuncList, key = lambda i: i[1][0])
 
     def findInitSearchDirections(self):
+        '''
+        Estimates the hessian matrix so has to used it's eigenvectors as an approx conjugate direction set.
+        '''
         step = 0.01
         #we can approximate the hessian matrix by going in certain directions and fitting a parabola to three points along each of the serach directions
         hMatrix = []
@@ -315,7 +346,9 @@ class optimiser:
 
 
     def dumpProgress(self):
-        #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
+        '''
+        at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
+        '''
         f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, completed_generation), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
@@ -327,7 +360,9 @@ class optimiser:
         pass
 
     def save_details_file(self):
-        #when the optimsation is finished this is called in order to save the settings of the algorithm.
+        '''
+        when the optimsation is finished this is called in order to save the settings of the algorithm.
+        '''
         file_return = ''
 
         file_return += 'dlsoo_rcds.py algorithm\n'
@@ -342,6 +377,9 @@ class optimiser:
         return file_return
 
     def optimise(self):
+        '''
+        This method runs the actual optimisation
+        '''
         global store_address
         store_address = self.store_location
         maxDirSearches = self.nOIterations*self.paramCount
@@ -397,7 +435,9 @@ class optimiser:
             initFunc = funcMin
 
 class import_algo_frame(Tkinter.Frame):
-    #this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.
+    '''
+    this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.
+    '''
     def __init__(self, parent):
         Tkinter.Frame.__init__(self, parent)
         self.parent = parent
@@ -435,7 +475,7 @@ class import_algo_frame(Tkinter.Frame):
         self.dirButton = Tkinter.Button(self, text='Give Directions', command=self.askNum)
         self.dirButton.grid(row=11, column=0)
 
-        Tkinter.Label(self, text="Recommendations:\nConsult documentation for the MATLAB version of RCDS.", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
+        Tkinter.Label(self, text="Recommendations:\nConsult documentation for the MATLAB version of RCDS.\n Note that search directions are in normalised parameter space. Each component is inputted by :; around it. \n For example to input verctor (1,2,3,4) we would write in the box, :1; :2; :3; :4;.", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
 
         self.i2.insert(0, '10')
         self.i3.insert(0, '0')
@@ -502,6 +542,10 @@ class import_algo_frame(Tkinter.Frame):
 
 class import_algo_prog_plot(Tkinter.Frame):
 
+    '''
+    Progress plotting class.
+    '''
+
     def __init__(self, parent, axis_labels, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
@@ -549,6 +593,10 @@ class import_algo_prog_plot(Tkinter.Frame):
         self.canvas2.show()
 
 class import_algo_final_plot(Tkinter.Frame):
+
+    '''
+    Provides the frame for the final plot.
+    '''
 
     def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address=None):
         global store_address
@@ -637,6 +685,10 @@ class import_algo_final_plot(Tkinter.Frame):
 
 
 class final_plot(Tkinter.Frame):
+
+    '''
+    This class is for ploting the final plot.
+    '''
 
     def __init__(self, parent, axis_labels, signConverter):
 

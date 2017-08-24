@@ -42,10 +42,15 @@ completed_generation = 0
 #The following is a list of functions useful to the optimiser bolow
 #used to deal with the case of progress handler for the optimiser class
 def nothing_function(data, x):
+    '''
+    Used as a substitute when there is no progress_handler given.
+    '''
     pass
 
 def is_dominated(x,y):
-    #Takes in two lists of numbers, x and y, to see if x dominates y.
+    '''
+    Takes in two lists of numbers, x and y, to see if x dominates y.
+    '''
     isLarger = False
     isLargerEqual = True
     for i in range(len(x)):
@@ -56,15 +61,20 @@ def is_dominated(x,y):
     return (isLargerEqual and isLarger)
 
 def probCalc(newObj, oldObj, temp):
-    #calculate the acceptance probability for a new set of parameters
+    '''
+    calculate the acceptance probability for a new set of parameters
+    Takes in old Objectives and new Objectives with the tempertures to calculate P.
+    '''
     exponent = 0
     for i in range(len(newObj)):
         exponent = exponent + (newObj[i] - oldObj[i])/temp[i]
     return min(1, numpy.exp(-exponent))
 
 def addRanGuass(params, temp, upBound, downBound):
-    #adds gaussian onto the parameters ensuring that it is stil in bounds
-    #this version uses truncated gaussian so as to aviod long loops.
+    '''
+    adds gaussian onto the parameters ensuring that it is stil in bounds
+    this version uses truncated gaussian so as to aviod long loops.
+    '''
     newPoint = []
     for i in range(len(temp)):
         x = stats.truncnorm((downBound[i] - params[i])/temp[i],(upBound[i] - params[i])/temp[i], loc = params[i], scale=temp[i]).rvs(size=1)[0]
@@ -73,26 +83,28 @@ def addRanGuass(params, temp, upBound, downBound):
     return newPoint
 
 class optimiser:
-    #This is the optimiser class which deals with the actual optimisation process.
+    '''
+    This is the optimiser class which deals with the actual optimisation process.
+    '''
     def __init__(self, settings_dict, interactor, store_location, a_min_var, a_max_var, individuals=None, progress_handler=None):
-        self.interactor = interactor
-        self.param = []
-        self.up = a_max_var
-        self.down = a_min_var
-        self.nOIterations = settings_dict['noIterations']
-        self.nOAneals = settings_dict['noAneals']
-        self.failDropCount = settings_dict['failDropCount']
-        self.passOutTempDrop = settings_dict['passOutTempDrop']
-        self.passInTempDrop = settings_dict['passInTempDrop']
-        self.paramCount = len(interactor.param_var_groups)
-        self.objCount = len(interactor.measurement_vars)
-        self.anealPlot = settings_dict['anealPlot']
-        self.progress_handler = progress_handler
-        self.inTemp = []
-        self.outTemp = []
-        self.domFrontParam = []
-        self.domFrontObjectives = []
-        self.domFrontErrors = []
+        self.interactor = interactor    #The interactor is what allows the program to evalute objectives.
+        self.param = []                 #this keeps track of where in parameter space MOSA is.
+        self.up = a_max_var             #upper bounds on parameters stored as a list.
+        self.down = a_min_var           #This is the lower bounds on the parameters stored as a list.
+        self.nOIterations = settings_dict['noIterations']   #This is the number of points MOSA can accept in one anneal.
+        self.nOAneals = settings_dict['noAneals']           #This specifies the number of anneals that will be performed overall.
+        self.failDropCount = settings_dict['failDropCount'] #This specifies how many failed attemps to find a new point occour before the input tempertures are reduced slightly.
+        self.paramCount = len(interactor.param_var_groups)  #This allows the algorithm to keep track of the number of parameters
+        self.objCount = len(interactor.measurement_vars)    #This lets the algorithm now the number of objectives
+        self.passOutTempDrop = self.objCount*[settings_dict['passOutTempDrop']] #This is a list of temperture drops
+        self.passInTempDrop = self.paramCount*[settings_dict['passInTempDrop']] #This is a list of temperture drops
+        self.anealPlot = settings_dict['anealPlot']         #This tells the algorithm whne to plot the front
+        self.progress_handler = progress_handler            #This is a callable function that lets the opimiser to communicate progress to the GUI.
+        self.inTemp = []                                    #This keeps track of the input tempertures
+        self.outTemp = []                                   #Keeps track of the output tempertures
+        self.domFrontParam = []                             #keeps track of the points in parameter space that is the current algorithm front.
+        self.domFrontObjectives = []                        #keeps track of the points of the front in objective space.
+        self.domFrontErrors = []                            #keeps track of the error on each objective on the front in objective space.
         #dumpFlag is used to let the algorithm know to save the front every so often
         try:
             self.dumpFlag = settings_dict['dumpFlag']
@@ -103,17 +115,20 @@ class optimiser:
             self.progress_handler = nothing_function
         else:
             self.progress_handler = progress_handler
-        self.objCallStop = settings_dict['objCallStop']
-        self.store_location = store_location
-        self.pause = False
-        self.cancel = False
-        if settings_dict['add_current_to_individuals'] == True:
-            self.initParams = interactor.get_ap()
+        self.objCallStop = settings_dict['objCallStop']     #lets the algorithm know the maximum number of measurements that can be made.
+        self.store_location = store_location                #This is the location where the front data is stored.
+        self.pause = False                                  #used to pause the algorithm
+        self.cancel = False                                 #used to cancel the current run of the algorithm.
+        if settings_dict['add_current_to_individuals'] == True:     #To keep track of wether the the algorithm should start from the current machine state or not.
+            self.initParams = interactor.get_ap()                   #set the inital parameters accordingly.
         else:
             self.initParams = []
         #pause is used to allow the main GUI to pause the algorithm.
 
     def getObjectives(self):
+        '''
+        Allows the algorithm to obtain the objectives from what the current parameters are.
+        '''
         #first we must set the machine to the desired parameter values
         self.interactor.set_ap(self.param)
         #now ask for a measurement
@@ -125,11 +140,15 @@ class optimiser:
         return (f, unc)
 
     def setUnifRanPoints(self):
-        #sets the optimisers parameters to somewhere random in their range of allowed values.
+        '''
+        sets the optimisers parameters to somewhere random in their range of allowed values.
+        '''
         self.param = [random.uniform(self.down[i], self.up[i]) for i in range(self.paramCount)]
 
     def setIinitOutTemp(self):
-        #set the initial output temperture
+        '''
+        set the initial output temperture
+        '''
         numTestPoints = min(2**len(self.up), 16)
         testResults = []
         #essentially preform a test and take some averages of the function values to set the temperture
@@ -142,7 +161,9 @@ class optimiser:
             self.outTemp.append(newTemp)
 
     def setNewOutTemp(self, objMin):
-        #set the new ouput temperture. Used after every aneal
+        '''
+        set the new ouput temperture. Used after every aneal
+        '''
         zero = True
         while zero:
             self.outTemp = [abs(random.gauss(2*(objMin[i]),4*abs(objMin[i]))) for i in range(self.objCount)]
@@ -151,7 +172,9 @@ class optimiser:
                 zero = False
 
     def setNewInTemp(self):
-        #set the input temperture after an aneal according to the range of allowed values.
+        '''
+        set the input temperture after an aneal according to the range of allowed values.
+        '''
         zero = True
         while zero:
             range1 = [(self.up[i] - self.down[i])/2 for i in range(self.paramCount)]
@@ -160,8 +183,10 @@ class optimiser:
                 zero = False
 
     def updateParetoFront(self, newObj):
-        #loop through the dominated front and see if the new solution can be added and remove
-        #any elements dominated by the new solution.
+        '''
+        loop through the dominated front and see if the new solution can be added and remove
+        any elements dominated by the new solution.
+        '''
         notDom = True
         dominatedElements = []
         for i in range(len(self.domFrontObjectives)):
@@ -179,7 +204,9 @@ class optimiser:
             self.domFrontErrors = [self.domFrontErrors[i] for i in range(len(self.domFrontErrors)) if not (i in dominatedElements)]
 
     def dumpFront(self):
-        #at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
+        '''
+        at the end in order to plot the fronts we need to save a python file defining the fronts vairalbe which is then used to plot the data.
+        '''
         f = file("{0}/FRONTS/fronts.{1}".format(self.store_location, completed_generation), "w")
         f.write('fronts = ((\n')
         #we need two ( so that this code is consistent with the DLS plot library.
@@ -191,7 +218,9 @@ class optimiser:
         pass
 
     def save_details_file(self):
-        #when the optimsation is finished this is called in order to save the settings of the algorithm.
+        '''
+        when the optimsation is finished this is called in order to save the settings of the algorithm.
+        '''
         file_return = ''
 
         file_return += 'dlsoo_mosa.py algorithm\n'
@@ -210,6 +239,9 @@ class optimiser:
         return file_return
 
     def optimise(self):
+        '''
+        This method runs the actual optimisation process.
+        '''
         global store_address
         #Store address keeps track of where we store the output of dumpFront
         global completed_generation
@@ -317,7 +349,9 @@ class optimiser:
             self.dumpFront()
 
 class import_algo_frame(Tkinter.Frame):
-    #this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.
+    '''
+    this class deals with the GUI for the algorithm. The main GUI will call this to get algorithm settings and so is called before optimise.
+    '''
     def __init__(self, parent):
         Tkinter.Frame.__init__(self, parent)
         self.parent = parent
@@ -328,11 +362,11 @@ class import_algo_frame(Tkinter.Frame):
         self.add_current_to_individuals = Tkinter.BooleanVar(self)
         self.add_current_to_individuals.set(True)
 
-        Tkinter.Label(self, text='Input temperature drops:').grid(row=2, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Input temperature cooling ratio:').grid(row=2, column=0, sticky=Tkinter.E)
         self.i2 = Tkinter.Entry(self)
         self.i2.grid(row=2,column=1, sticky=Tkinter.E + Tkinter.W)
 
-        Tkinter.Label(self, text='Objectives temperature drops:').grid(row=3, column=0, sticky=Tkinter.E)
+        Tkinter.Label(self, text='Output temperature cooling ratio:').grid(row=3, column=0, sticky=Tkinter.E)
         self.i3 = Tkinter.Entry(self)
         self.i3.grid(row=3,column=1, sticky=Tkinter.E + Tkinter.W)
 
@@ -361,8 +395,8 @@ class import_algo_frame(Tkinter.Frame):
 
         Tkinter.Label(self, text="Recommendations:\nUse as scanning tool when good points not known and then implement GA when the front stops significantly improving\nDo not use if an objective function's best value approaches zero: Ideally the function's 'worst' value should be set to zero \nLength of cycle ~35 if ratios unchanged from default, else refer to doccumentation", justify=Tkinter.LEFT).grid(row=10, column=0, columnspan=2, sticky=Tkinter.W)
 
-        self.i2.insert(0, ':0.9; :0.9; :0.9;')
-        self.i3.insert(0, ':0.87; :0.87;')
+        self.i2.insert(0, '0.9')
+        self.i3.insert(0, '0.87')
         self.i4.insert(0, '5')
         self.i5.insert(0, "35")
         self.i6.insert(0, "1")
@@ -374,14 +408,14 @@ class import_algo_frame(Tkinter.Frame):
         setup = {}
         good_data = True
         try:
-            setup['passInTempDrop'] = extractNumbers(self.i2.get())
+            setup['passInTempDrop'] = float(self.i2.get())
         except:
-            tkMessageBox.showerror('MOSA settings error', 'Tempertures input incorrectly.')
+            tkMessageBox.showerror('MOSA settings error', 'Temperture drops input incorrectly.')
             good_data = False
         try:
-            setup['passOutTempDrop'] = extractNumbers(self.i3.get())
+            setup['passOutTempDrop'] = float(self.i3.get())
         except:
-            tkMessageBox.showerror('MOSA settings error', 'Tempertures input incorrectly.')
+            tkMessageBox.showerror('MOSA settings error', 'Temperture drops input incorrectly.')
             good_data = False
         try:
             setup['noAneals'] = int(self.i4.get())
@@ -421,6 +455,10 @@ class import_algo_frame(Tkinter.Frame):
 
 class import_algo_prog_plot(Tkinter.Frame):
 
+    '''
+    This deals with plotting the current front on the GUI.
+    '''
+
     def __init__(self, parent, axis_labels, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
@@ -457,8 +495,12 @@ class import_algo_prog_plot(Tkinter.Frame):
 
 class import_algo_final_plot(Tkinter.Frame):
 
+    '''
+    This deals with giving the GUI the frame to plot the final front with.
+    '''
+
     def __init__(self, parent, pick_handler, axis_labels, signConverter, post_analysis_store_address = None):
-        
+
         global store_address
         Tkinter.Frame.__init__(self, parent)
 
@@ -467,10 +509,10 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.pick_handler = pick_handler
         self.axis_labels = axis_labels
-        
+
         if post_analysis_store_address is not None:
             store_address = post_analysis_store_address
-        
+
         #self.initUi()
 
     def initUi(self):
@@ -485,7 +527,7 @@ class import_algo_final_plot(Tkinter.Frame):
 
         self.view_mode = Tkinter.StringVar()
         self.view_mode.set('No focus')
-        
+
         self.plot_frame = final_plot(self, self.axis_labels, self.signConverter)
 
         self.plot_frame.grid(row=0, column=0, pady=20, padx=20, rowspan=1, sticky=Tkinter.N+Tkinter.S+Tkinter.E+Tkinter.W)
@@ -501,7 +543,7 @@ class import_algo_final_plot(Tkinter.Frame):
         self.parent.rowconfigure(0, weight=1)
 
     def on_pick(self, event):
-        
+
         global store_address
         completed_generation = len(os.listdir('{0}/FRONTS'.format(store_address)))
         # Lookup ap values
@@ -553,6 +595,10 @@ class import_algo_final_plot(Tkinter.Frame):
 
 class final_plot(Tkinter.Frame):
 
+    '''
+    This actually plots the final front for the algorithm at the end of running. 
+    '''
+
     def __init__(self, parent, axis_labels, signConverter):
 
         Tkinter.Frame.__init__(self, parent)
@@ -579,7 +625,7 @@ class final_plot(Tkinter.Frame):
         #for i in range(algo_settings_dict['max_gen']):
         for i in range(completed_generation):
             file_names.append("{0}/FRONTS/fronts.{1}".format(store_address, i+1))
-            
+
         print 'file names', file_names
 
         plot.plot_pareto_fronts_interactive(file_names, a, self.axis_labels, None, None, self.parent.view_mode.get(), self.signConverter)
